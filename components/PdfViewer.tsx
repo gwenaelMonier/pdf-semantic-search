@@ -24,8 +24,7 @@ function normalize(s: string): string {
     .trim();
 }
 
-function buildTrigrams(quote: string): string[] {
-  const norm = normalize(quote);
+function buildTrigrams(norm: string): string[] {
   if (!norm) return [];
   const words = norm.split(" ");
   if (words.length < 3) return [norm];
@@ -44,12 +43,85 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+type PdfTextItem = { str?: string };
+type PdfTextContent = { items: PdfTextItem[] };
+
+/**
+ * Given the text items of a PDF page and a target quote, returns the set of
+ * item indices that overlap the quote's location on the page.
+ *
+ * Strategy:
+ * 1. Normalize every item and concatenate with single-space separators,
+ *    tracking each item's char range in the concatenated string.
+ * 2. Find the normalized quote as a substring of the concatenated text.
+ * 3. Mark every item whose range overlaps the quote's range.
+ *
+ * Fallback (when exact substring match fails, e.g. the LLM reformulated the
+ * quote): trigram scan — mark any item that contains a normalized trigram
+ * from the quote, plus immediate neighbours to bridge single-word items.
+ */
+function computeHighlightIndices(
+  items: PdfTextItem[],
+  quote: string,
+): Set<number> {
+  const set = new Set<number>();
+  const normQuote = normalize(quote);
+  if (!normQuote) return set;
+
+  const itemRanges: { idx: number; start: number; end: number }[] = [];
+  let concat = "";
+  items.forEach((item, idx) => {
+    const n = normalize(item.str ?? "");
+    if (!n) return;
+    if (concat.length > 0) concat += " ";
+    const start = concat.length;
+    concat += n;
+    itemRanges.push({ idx, start, end: concat.length });
+  });
+
+  const pos = concat.indexOf(normQuote);
+  if (pos !== -1) {
+    const quoteEnd = pos + normQuote.length;
+    for (const r of itemRanges) {
+      if (r.end > pos && r.start < quoteEnd) set.add(r.idx);
+    }
+    return set;
+  }
+
+  const trigrams = buildTrigrams(normQuote);
+  if (trigrams.length === 0) return set;
+  const hits: number[] = [];
+  itemRanges.forEach((r, listIdx) => {
+    const n = concat.slice(r.start, r.end);
+    if (trigrams.some((t) => n.includes(t) || t.includes(n))) {
+      hits.push(listIdx);
+    }
+  });
+  // Bridge gaps of 1-2 items between hits (single-word items skipped by
+  // per-item matching).
+  for (let i = 0; i < hits.length; i++) {
+    set.add(itemRanges[hits[i]].idx);
+    if (i < hits.length - 1) {
+      const gap = hits[i + 1] - hits[i];
+      if (gap <= 3) {
+        for (let j = hits[i] + 1; j < hits[i + 1]; j++) {
+          set.add(itemRanges[j].idx);
+        }
+      }
+    }
+  }
+  return set;
+}
+
 export function PdfViewer({ file, target, onPageChange }: Props) {
   const [numPages, setNumPages] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const pageWrapperRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number>(600);
   const [fileData, setFileData] = useState<{ data: Uint8Array } | null>(null);
+  const [highlightIndices, setHighlightIndices] = useState<Set<number>>(
+    new Set(),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -74,22 +146,30 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
 
   const clampedPage = Math.min(Math.max(1, target.page), numPages || 1);
 
-  const trigrams = target.quote ? buildTrigrams(target.quote) : [];
+  useEffect(() => {
+    setHighlightIndices(new Set());
+  }, [target.nonce, target.page, target.quote]);
 
   const customTextRenderer = useCallback(
-    ({ str }: { str: string; itemIndex: number }) => {
-      if (trigrams.length === 0 || !str.trim()) return escapeHtml(str);
-      const normItem = normalize(str);
-      if (!normItem) return escapeHtml(str);
-      const hit = trigrams.some(
-        (t) => normItem.includes(t) || t.includes(normItem),
-      );
-      return hit
-        ? `<mark class="hr-highlight">${escapeHtml(str)}</mark>`
-        : escapeHtml(str);
+    ({ str, itemIndex }: { str: string; itemIndex: number }) => {
+      if (!highlightIndices.has(itemIndex)) return escapeHtml(str);
+      return `<mark class="hr-highlight">${escapeHtml(str)}</mark>`;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [trigrams.join("|"), target.nonce],
+    [highlightIndices],
+  );
+
+  const handleGetTextSuccess = useCallback(
+    (textContent: { items: Array<{ str?: string } | object> }) => {
+      if (!target.quote) {
+        setHighlightIndices(new Set());
+        return;
+      }
+      const items: PdfTextItem[] = textContent.items.map((it) => ({
+        str: "str" in it ? (it as { str?: string }).str : "",
+      }));
+      setHighlightIndices(computeHighlightIndices(items, target.quote));
+    },
+    [target.quote, target.nonce, target.page],
   );
 
   useEffect(() => {
@@ -165,6 +245,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
                 renderAnnotationLayer={false}
                 renderTextLayer={true}
                 customTextRenderer={customTextRenderer}
+                onGetTextSuccess={handleGetTextSuccess}
                 className="shadow-lg"
               />
             </div>

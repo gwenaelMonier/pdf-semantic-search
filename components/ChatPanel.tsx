@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Children, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { parseCitations, type CitationTarget } from "@/lib/citations";
 
 export type Message = {
   role: "user" | "assistant";
   content: string;
 };
 
-export type CitationTarget = { page: number; quote?: string };
+export type { CitationTarget };
 
 type Props = {
   sessionId: string;
@@ -17,36 +20,34 @@ type Props = {
   onReset: () => void;
 };
 
-// Matches [p. 12: "extrait"] OR [p. 12, 34, 56]
-const CITATION_REGEX =
-  /\[p\.\s*(\d+)\s*:\s*"([^"]+)"\]|\[p\.\s*([\d,\s]+)\]/g;
+function processChildrenForCitations(
+  children: ReactNode,
+  onPageClick: (target: CitationTarget) => void,
+): ReactNode {
+  return Children.map(children, (child) => {
+    if (typeof child === "string") {
+      return renderWithCitations(child, onPageClick);
+    }
+    return child;
+  });
+}
 
 function renderWithCitations(
   text: string,
   onPageClick: (target: CitationTarget) => void,
 ): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
+  const citations = parseCitations(text);
   let lastIndex = 0;
-  let match: RegExpExecArray | null;
   let key = 0;
-  CITATION_REGEX.lastIndex = 0;
 
-  while ((match = CITATION_REGEX.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+  for (const c of citations) {
+    if (c.start > lastIndex) {
+      parts.push(text.slice(lastIndex, c.start));
     }
-
-    const targets: CitationTarget[] = match[2]
-      ? [{ page: parseInt(match[1], 10), quote: match[2] }]
-      : match[3]
-          .split(",")
-          .map((s) => parseInt(s.trim(), 10))
-          .filter((n) => !isNaN(n))
-          .map((page) => ({ page }));
-
     parts.push(
       <span key={`cite-${key++}`} className="inline-flex flex-wrap gap-1 align-baseline">
-        {targets.map((t, i) => (
+        {c.targets.map((t, i) => (
           <button
             key={i}
             onClick={() => onPageClick(t)}
@@ -58,7 +59,7 @@ function renderWithCitations(
         ))}
       </span>,
     );
-    lastIndex = match.index + match[0].length;
+    lastIndex = c.end;
   }
   if (lastIndex < text.length) parts.push(text.slice(lastIndex));
   return parts;
@@ -167,15 +168,97 @@ export function ChatPanel({
               className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                className={`max-w-[90%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   m.role === "user"
-                    ? "bg-blue-600 text-white"
+                    ? "whitespace-pre-wrap bg-blue-600 text-white"
                     : "bg-zinc-100 text-zinc-900"
                 }`}
               >
-                {m.role === "assistant"
-                  ? renderWithCitations(m.content || "…", onPageClick)
-                  : m.content}
+                {m.role === "assistant" ? (
+                  <div className="prose-chat">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        p: ({ children }) => (
+                          <p className="mb-2 last:mb-0">
+                            {processChildrenForCitations(children, onPageClick)}
+                          </p>
+                        ),
+                        li: ({ children }) => (
+                          <li className="mb-1 last:mb-0">
+                            {processChildrenForCitations(children, onPageClick)}
+                          </li>
+                        ),
+                        ul: ({ children }) => (
+                          <ul className="mb-2 list-disc pl-5 last:mb-0">
+                            {children}
+                          </ul>
+                        ),
+                        ol: ({ children }) => (
+                          <ol className="mb-2 list-decimal pl-5 last:mb-0">
+                            {children}
+                          </ol>
+                        ),
+                        h1: ({ children }) => (
+                          <h1 className="mb-2 mt-4 text-lg font-bold text-zinc-900 first:mt-0">
+                            {processChildrenForCitations(children, onPageClick)}
+                          </h1>
+                        ),
+                        h2: ({ children }) => (
+                          <h2 className="mb-2 mt-3 border-b border-zinc-300 pb-1 text-base font-bold text-zinc-900 first:mt-0">
+                            {processChildrenForCitations(children, onPageClick)}
+                          </h2>
+                        ),
+                        h3: ({ children }) => (
+                          <h3 className="mb-1 mt-3 text-sm font-bold uppercase tracking-wide text-zinc-700 first:mt-0">
+                            {processChildrenForCitations(children, onPageClick)}
+                          </h3>
+                        ),
+                        h4: ({ children }) => (
+                          <h4 className="mb-1 mt-2 text-sm font-semibold text-zinc-800 first:mt-0">
+                            {processChildrenForCitations(children, onPageClick)}
+                          </h4>
+                        ),
+                        strong: ({ children }) => (
+                          <strong className="font-semibold">
+                            {processChildrenForCitations(children, onPageClick)}
+                          </strong>
+                        ),
+                        em: ({ children }) => (
+                          <em className="italic">
+                            {processChildrenForCitations(children, onPageClick)}
+                          </em>
+                        ),
+                        code: ({ children }) => (
+                          <code className="rounded bg-zinc-200 px-1 py-0.5 text-xs">
+                            {children}
+                          </code>
+                        ),
+                        table: ({ children }) => (
+                          <div className="my-2 overflow-x-auto">
+                            <table className="min-w-full border-collapse text-xs">
+                              {children}
+                            </table>
+                          </div>
+                        ),
+                        th: ({ children }) => (
+                          <th className="border border-zinc-300 bg-zinc-200 px-2 py-1 text-left font-semibold">
+                            {processChildrenForCitations(children, onPageClick)}
+                          </th>
+                        ),
+                        td: ({ children }) => (
+                          <td className="border border-zinc-300 px-2 py-1">
+                            {processChildrenForCitations(children, onPageClick)}
+                          </td>
+                        ),
+                      }}
+                    >
+                      {m.content || "…"}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  m.content
+                )}
               </div>
             </div>
           ))}
