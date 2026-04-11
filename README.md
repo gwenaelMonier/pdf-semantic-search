@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HR Assistant
 
-## Getting Started
+AI-powered chatbot that answers HR questions about a **collective agreement** (convention collective) you upload as a PDF. For every answer, the model cites the source pages and clicking a citation jumps to the page and **highlights the exact quoted passage** in the PDF viewer.
 
-First, run the development server:
+## Features
+
+- PDF upload via drag & drop (30 MB / 500 pages max)
+- Conversational chat with streaming responses and session history
+- Sourced citations in the format `[p. X: "verbatim excerpt"]`
+- Click a citation → jump to the page, highlight the passage, auto-scroll to it
+- Split view: chat on the left, PDF viewer on the right
+- Zero hallucination: the model explicitly says when the info is not in the document
+
+## Stack
+
+- **Next.js 16** (App Router) + **TypeScript** + **Tailwind CSS 4**
+- **Google Gemini 2.5 Flash** via `@google/generative-ai`
+- **unpdf** for server-side PDF text extraction
+- **react-pdf** / **pdf.js** for client-side rendering and highlighting
+
+No vector store, no RAG: the full document is sent to the model on every request. Gemini's 1M token context window is more than enough for a typical collective agreement.
+
+## Prerequisites
+
+- **Node.js 20+**
+- A (free) Gemini API key: https://aistudio.google.com/apikey
+
+## Installation
+
+```bash
+npm install
+cp .env.local.example .env.local
+# then edit .env.local and paste your key:
+# GEMINI_API_KEY=your_key_here
+```
+
+## Running
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000), drop a collective agreement PDF, and start asking questions.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Required | Description |
+|---|---|---|
+| `GEMINI_API_KEY` | yes | Google AI Studio API key |
+| `GEMINI_MODEL` | no | Gemini model to use (default: `gemini-2.5-flash`) |
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+app/
+  api/
+    upload/route.ts     # POST PDF → extract text → create session
+    chat/route.ts       # POST question → stream Gemini response
+  page.tsx              # orchestration: uploader / chat / viewer
+  layout.tsx
+components/
+  PdfUploader.tsx       # drag & drop uploader
+  ChatPanel.tsx         # chat UI + citation parsing
+  PdfViewer.tsx         # react-pdf + n-gram highlighting
+lib/
+  pdf.ts                # per-page text extraction (unpdf)
+  gemini.ts             # Gemini client + system prompt
+  session.ts            # in-memory session store (2h TTL)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Known limitations
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- No persistence: history and PDF are lost on refresh.
+- Sessions live in server memory → not suitable for multi-instance deployment as-is.
+- Highlighting uses fuzzy trigram matching: may miss the mark if the model's excerpt diverges too much from the raw PDF text.
+- Single user, no authentication.

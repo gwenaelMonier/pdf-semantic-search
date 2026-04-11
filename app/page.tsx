@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { ChatPanel } from "@/components/ChatPanel";
+import { ChatPanel, type CitationTarget } from "@/components/ChatPanel";
 import { PdfUploader, type UploadResult } from "@/components/PdfUploader";
 
 const PdfViewer = dynamic(
@@ -10,9 +10,11 @@ const PdfViewer = dynamic(
   { ssr: false },
 );
 
+export type ViewerTarget = CitationTarget & { nonce: number };
+
 export default function Home() {
   const [session, setSession] = useState<UploadResult | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [target, setTarget] = useState<ViewerTarget>({ page: 1, nonce: 0 });
 
   if (!session) {
     return <PdfUploader onUploaded={setSession} />;
@@ -24,13 +26,20 @@ export default function Home() {
         sessionId={session.sessionId}
         filename={session.filename}
         pageCount={session.pageCount}
-        onPageClick={(p) => setCurrentPage(p)}
-        onReset={() => setSession(null)}
+        onPageClick={(t) =>
+          setTarget((prev) => ({ ...t, nonce: prev.nonce + 1 }))
+        }
+        onReset={() => {
+          setSession(null);
+          setTarget({ page: 1, nonce: 0 });
+        }}
       />
       <PdfViewer
         file={session.file}
-        currentPage={currentPage}
-        onPageChange={setCurrentPage}
+        target={target}
+        onPageChange={(page) =>
+          setTarget((prev) => ({ page, nonce: prev.nonce + 1 }))
+        }
       />
     </div>
   );

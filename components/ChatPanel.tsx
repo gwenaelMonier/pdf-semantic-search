@@ -7,44 +7,53 @@ export type Message = {
   content: string;
 };
 
+export type CitationTarget = { page: number; quote?: string };
+
 type Props = {
   sessionId: string;
   filename: string;
   pageCount: number;
-  onPageClick: (page: number) => void;
+  onPageClick: (target: CitationTarget) => void;
   onReset: () => void;
 };
 
-const PAGE_REGEX = /\[p\.\s*([\d,\s]+)\]/g;
+// Matches [p. 12: "extrait"] OR [p. 12, 34, 56]
+const CITATION_REGEX =
+  /\[p\.\s*(\d+)\s*:\s*"([^"]+)"\]|\[p\.\s*([\d,\s]+)\]/g;
 
 function renderWithCitations(
   text: string,
-  onPageClick: (page: number) => void,
+  onPageClick: (target: CitationTarget) => void,
 ): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   let key = 0;
-  PAGE_REGEX.lastIndex = 0;
+  CITATION_REGEX.lastIndex = 0;
 
-  while ((match = PAGE_REGEX.exec(text)) !== null) {
+  while ((match = CITATION_REGEX.exec(text)) !== null) {
     if (match.index > lastIndex) {
       parts.push(text.slice(lastIndex, match.index));
     }
-    const pages = match[1]
-      .split(",")
-      .map((s) => parseInt(s.trim(), 10))
-      .filter((n) => !isNaN(n));
+
+    const targets: CitationTarget[] = match[2]
+      ? [{ page: parseInt(match[1], 10), quote: match[2] }]
+      : match[3]
+          .split(",")
+          .map((s) => parseInt(s.trim(), 10))
+          .filter((n) => !isNaN(n))
+          .map((page) => ({ page }));
 
     parts.push(
       <span key={`cite-${key++}`} className="inline-flex flex-wrap gap-1 align-baseline">
-        {pages.map((p, i) => (
+        {targets.map((t, i) => (
           <button
             key={i}
-            onClick={() => onPageClick(p)}
+            onClick={() => onPageClick(t)}
+            title={t.quote}
             className="inline-flex items-center rounded-md bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 transition hover:bg-blue-200"
           >
-            p. {p}
+            p. {t.page}
           </button>
         ))}
       </span>,
