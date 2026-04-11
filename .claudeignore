@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+
+# Generated files
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Package lock
+package-lock.json
