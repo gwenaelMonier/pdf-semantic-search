@@ -1,7 +1,16 @@
 "use client";
 
-import { Children, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
+import {
+  Children,
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseCitations, type CitationTarget } from "@/lib/citations";
 
@@ -19,6 +28,40 @@ type Props = {
   onPageClick: (target: CitationTarget) => void;
   onReset: () => void;
 };
+
+/**
+ * Trims trailing, not-yet-closed Markdown/citation syntax from a streaming
+ * buffer so the reader never sees half-rendered `**bold`, backticks or
+ * `[p. 12` literals before the closer arrives.
+ */
+function stabilizeStreamingMarkdown(s: string): string {
+  const lastOpen = s.lastIndexOf("[");
+  const lastClose = s.lastIndexOf("]");
+  if (lastOpen > lastClose) {
+    // If the unclosed bracket already contains a parseable page list
+    // (e.g. "[p. 53" or "[p. 53: \"partial quote...") synthesize the
+    // closing bracket so the citation button appears immediately —
+    // otherwise we'd hide the whole `[p. X: "long quote"]` until the
+    // real `]` arrives.
+    const tail = s.slice(lastOpen);
+    const m = tail.match(/^\[p\.\s*([\d,\s\-–]+?)(?=\s*:|\s*$|\s*")/);
+    if (m) {
+      s = s.slice(0, lastOpen) + `[p. ${m[1].trim()}]`;
+    } else {
+      s = s.slice(0, lastOpen);
+    }
+  }
+
+  if ((s.match(/\*\*/g) || []).length % 2 === 1) {
+    s = s.slice(0, s.lastIndexOf("**"));
+  }
+
+  if ((s.match(/`/g) || []).length % 2 === 1) {
+    s = s.slice(0, s.lastIndexOf("`"));
+  }
+
+  return s;
+}
 
 function processChildrenForCitations(
   children: ReactNode,
@@ -65,6 +108,103 @@ function renderWithCitations(
   return parts;
 }
 
+function buildMarkdownComponents(
+  onPageClick: (target: CitationTarget) => void,
+): Components {
+  return {
+    p: ({ children }) => (
+      <p className="mb-2 last:mb-0">
+        {processChildrenForCitations(children, onPageClick)}
+      </p>
+    ),
+    li: ({ children }) => (
+      <li className="mb-1 last:mb-0">
+        {processChildrenForCitations(children, onPageClick)}
+      </li>
+    ),
+    ul: ({ children }) => (
+      <ul className="mb-2 list-disc pl-5 last:mb-0">{children}</ul>
+    ),
+    ol: ({ children }) => (
+      <ol className="mb-2 list-decimal pl-5 last:mb-0">{children}</ol>
+    ),
+    h1: ({ children }) => (
+      <h1 className="mb-2 mt-4 text-lg font-bold text-zinc-900 first:mt-0">
+        {processChildrenForCitations(children, onPageClick)}
+      </h1>
+    ),
+    h2: ({ children }) => (
+      <h2 className="mb-2 mt-3 border-b border-zinc-300 pb-1 text-base font-bold text-zinc-900 first:mt-0">
+        {processChildrenForCitations(children, onPageClick)}
+      </h2>
+    ),
+    h3: ({ children }) => (
+      <h3 className="mb-1 mt-3 text-sm font-bold uppercase tracking-wide text-zinc-700 first:mt-0">
+        {processChildrenForCitations(children, onPageClick)}
+      </h3>
+    ),
+    h4: ({ children }) => (
+      <h4 className="mb-1 mt-2 text-sm font-semibold text-zinc-800 first:mt-0">
+        {processChildrenForCitations(children, onPageClick)}
+      </h4>
+    ),
+    strong: ({ children }) => (
+      <strong className="font-semibold">
+        {processChildrenForCitations(children, onPageClick)}
+      </strong>
+    ),
+    em: ({ children }) => (
+      <em className="italic">
+        {processChildrenForCitations(children, onPageClick)}
+      </em>
+    ),
+    code: ({ children }) => (
+      <code className="rounded bg-zinc-200 px-1 py-0.5 text-xs">
+        {children}
+      </code>
+    ),
+    table: ({ children }) => (
+      <div className="my-2 overflow-x-auto">
+        <table className="min-w-full border-collapse text-xs">{children}</table>
+      </div>
+    ),
+    th: ({ children }) => (
+      <th className="border border-zinc-300 bg-zinc-200 px-2 py-1 text-left font-semibold">
+        {processChildrenForCitations(children, onPageClick)}
+      </th>
+    ),
+    td: ({ children }) => (
+      <td className="border border-zinc-300 px-2 py-1">
+        {processChildrenForCitations(children, onPageClick)}
+      </td>
+    ),
+  };
+}
+
+type AssistantMessageProps = {
+  content: string;
+  isStreaming: boolean;
+  components: Components;
+};
+
+const AssistantMessage = memo(function AssistantMessage({
+  content,
+  isStreaming,
+  components,
+}: AssistantMessageProps) {
+  const display = useMemo(
+    () => (isStreaming ? stabilizeStreamingMarkdown(content) : content),
+    [content, isStreaming],
+  );
+  return (
+    <div className="prose-chat">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {display || "…"}
+      </ReactMarkdown>
+    </div>
+  );
+});
+
 export function ChatPanel({
   sessionId,
   filename,
@@ -76,9 +216,31 @@ export function ChatPanel({
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const typewriterRef = useRef<number | null>(null);
+  const stickToBottomRef = useRef(true);
 
+  const markdownComponents = useMemo(
+    () => buildMarkdownComponents(onPageClick),
+    [onPageClick],
+  );
+
+  // Stick to bottom unless the user has scrolled up.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      stickToBottomRef.current = distance < 80;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Keep the scroll anchored while a message is being streamed.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !stickToBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   async function handleSubmit(e: FormEvent) {
@@ -94,6 +256,7 @@ export function ChatPanel({
     setMessages(nextMessages);
     setInput("");
     setStreaming(true);
+    stickToBottomRef.current = true;
 
     try {
       const res = await fetch("/api/chat", {
@@ -113,18 +276,55 @@ export function ChatPanel({
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let acc = "";
+      let target = "";
+      let displayed = 0;
+      let streamDone = false;
+
+      const CHAR_PER_MS = 1 / 12; // ~83 characters per second
+      const startTime = performance.now();
+
+      const tick = () => {
+        const elapsed = performance.now() - startTime;
+        const expected = Math.min(
+          target.length,
+          Math.floor(elapsed * CHAR_PER_MS),
+        );
+        if (expected !== displayed) {
+          displayed = expected;
+          const snapshot = target.slice(0, displayed);
+          setMessages((curr) => {
+            const copy = [...curr];
+            copy[copy.length - 1] = { role: "assistant", content: snapshot };
+            return copy;
+          });
+        }
+        if (streamDone && displayed >= target.length) {
+          typewriterRef.current = null;
+          return;
+        }
+        typewriterRef.current = requestAnimationFrame(tick);
+      };
+      typewriterRef.current = requestAnimationFrame(tick);
+
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        acc += decoder.decode(value, { stream: true });
-        setMessages((curr) => {
-          const copy = [...curr];
-          copy[copy.length - 1] = { role: "assistant", content: acc };
-          return copy;
-        });
+        target += decoder.decode(value, { stream: true });
       }
+      streamDone = true;
+
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (typewriterRef.current === null) resolve();
+          else setTimeout(check, 16);
+        };
+        check();
+      });
     } catch (err) {
+      if (typewriterRef.current !== null) {
+        cancelAnimationFrame(typewriterRef.current);
+        typewriterRef.current = null;
+      }
       setMessages((curr) => {
         const copy = [...curr];
         copy[copy.length - 1] = {
@@ -162,106 +362,34 @@ export function ChatPanel({
           </div>
         )}
         <div className="space-y-4">
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-            >
+          {messages.map((m, i) => {
+            const isLastAssistant =
+              m.role === "assistant" && i === messages.length - 1;
+            return (
               <div
-                className={`max-w-[90%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                  m.role === "user"
-                    ? "whitespace-pre-wrap bg-blue-600 text-white"
-                    : "bg-zinc-100 text-zinc-900"
-                }`}
+                key={i}
+                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                {m.role === "assistant" ? (
-                  <div className="prose-chat">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        p: ({ children }) => (
-                          <p className="mb-2 last:mb-0">
-                            {processChildrenForCitations(children, onPageClick)}
-                          </p>
-                        ),
-                        li: ({ children }) => (
-                          <li className="mb-1 last:mb-0">
-                            {processChildrenForCitations(children, onPageClick)}
-                          </li>
-                        ),
-                        ul: ({ children }) => (
-                          <ul className="mb-2 list-disc pl-5 last:mb-0">
-                            {children}
-                          </ul>
-                        ),
-                        ol: ({ children }) => (
-                          <ol className="mb-2 list-decimal pl-5 last:mb-0">
-                            {children}
-                          </ol>
-                        ),
-                        h1: ({ children }) => (
-                          <h1 className="mb-2 mt-4 text-lg font-bold text-zinc-900 first:mt-0">
-                            {processChildrenForCitations(children, onPageClick)}
-                          </h1>
-                        ),
-                        h2: ({ children }) => (
-                          <h2 className="mb-2 mt-3 border-b border-zinc-300 pb-1 text-base font-bold text-zinc-900 first:mt-0">
-                            {processChildrenForCitations(children, onPageClick)}
-                          </h2>
-                        ),
-                        h3: ({ children }) => (
-                          <h3 className="mb-1 mt-3 text-sm font-bold uppercase tracking-wide text-zinc-700 first:mt-0">
-                            {processChildrenForCitations(children, onPageClick)}
-                          </h3>
-                        ),
-                        h4: ({ children }) => (
-                          <h4 className="mb-1 mt-2 text-sm font-semibold text-zinc-800 first:mt-0">
-                            {processChildrenForCitations(children, onPageClick)}
-                          </h4>
-                        ),
-                        strong: ({ children }) => (
-                          <strong className="font-semibold">
-                            {processChildrenForCitations(children, onPageClick)}
-                          </strong>
-                        ),
-                        em: ({ children }) => (
-                          <em className="italic">
-                            {processChildrenForCitations(children, onPageClick)}
-                          </em>
-                        ),
-                        code: ({ children }) => (
-                          <code className="rounded bg-zinc-200 px-1 py-0.5 text-xs">
-                            {children}
-                          </code>
-                        ),
-                        table: ({ children }) => (
-                          <div className="my-2 overflow-x-auto">
-                            <table className="min-w-full border-collapse text-xs">
-                              {children}
-                            </table>
-                          </div>
-                        ),
-                        th: ({ children }) => (
-                          <th className="border border-zinc-300 bg-zinc-200 px-2 py-1 text-left font-semibold">
-                            {processChildrenForCitations(children, onPageClick)}
-                          </th>
-                        ),
-                        td: ({ children }) => (
-                          <td className="border border-zinc-300 px-2 py-1">
-                            {processChildrenForCitations(children, onPageClick)}
-                          </td>
-                        ),
-                      }}
-                    >
-                      {m.content || "…"}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  m.content
-                )}
+                <div
+                  className={`max-w-[90%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                    m.role === "user"
+                      ? "whitespace-pre-wrap bg-blue-600 text-white"
+                      : "bg-zinc-100 text-zinc-900"
+                  }`}
+                >
+                  {m.role === "assistant" ? (
+                    <AssistantMessage
+                      content={m.content}
+                      isStreaming={isLastAssistant && streaming}
+                      components={markdownComponents}
+                    />
+                  ) : (
+                    m.content
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
