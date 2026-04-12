@@ -5,6 +5,22 @@ import { streamAnswer, type ChatTurn } from "@/lib/gemini";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
+function formatStreamError(err: unknown): string {
+  const e = err as { status?: number; message?: string };
+  if (e?.status === 429) {
+    const match = e.message?.match(/retry in ([\d.]+)s/i);
+    const delay = match ? Math.ceil(parseFloat(match[1])) : null;
+    const retry = delay ? ` Réessayez dans environ ${delay}s.` : "";
+    return (
+      "\n\n> ⚠️ **Quota Gemini épuisé** (palier gratuit).\n> " +
+      "Le modèle `gemini-2.5-flash` est limité à 20 requêtes par jour sur ce compte." +
+      retry +
+      "\n> Vous pouvez passer à `gemini-2.5-flash-lite` via la variable d'environnement `GEMINI_MODEL`."
+    );
+  }
+  return "\n\n[Erreur lors de la génération de la réponse.]";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as {
@@ -39,9 +55,7 @@ export async function POST(req: NextRequest) {
           controller.close();
         } catch (err) {
           console.error("stream error", err);
-          controller.enqueue(
-            encoder.encode("\n\n[Erreur lors de la génération de la réponse.]"),
-          );
+          controller.enqueue(encoder.encode(formatStreamError(err)));
           controller.close();
         }
       },

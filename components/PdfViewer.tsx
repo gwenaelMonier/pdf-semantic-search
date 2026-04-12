@@ -122,6 +122,9 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
   const [highlightIndices, setHighlightIndices] = useState<Set<number>>(
     new Set(),
   );
+  const textItemsRef = useRef<{ page: number; items: PdfTextItem[] } | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -146,9 +149,17 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
 
   const clampedPage = Math.min(Math.max(1, target.page), numPages || 1);
 
+  // Recompute indices from the cached text items whenever the target
+  // changes. If we haven't extracted this page's text yet, the cache is
+  // empty and we wait for onGetTextSuccess to fill it.
   useEffect(() => {
-    setHighlightIndices(new Set());
-  }, [target.nonce, target.page, target.quote]);
+    const cached = textItemsRef.current;
+    if (!target.quote || !cached || cached.page !== clampedPage) {
+      setHighlightIndices(new Set());
+      return;
+    }
+    setHighlightIndices(computeHighlightIndices(cached.items, target.quote));
+  }, [target.nonce, target.page, target.quote, clampedPage]);
 
   const customTextRenderer = useCallback(
     ({ str, itemIndex }: { str: string; itemIndex: number }) => {
@@ -160,16 +171,17 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
 
   const handleGetTextSuccess = useCallback(
     (textContent: { items: Array<{ str?: string } | object> }) => {
+      const items: PdfTextItem[] = textContent.items.map((it) => ({
+        str: "str" in it ? (it as { str?: string }).str : "",
+      }));
+      textItemsRef.current = { page: clampedPage, items };
       if (!target.quote) {
         setHighlightIndices(new Set());
         return;
       }
-      const items: PdfTextItem[] = textContent.items.map((it) => ({
-        str: "str" in it ? (it as { str?: string }).str : "",
-      }));
       setHighlightIndices(computeHighlightIndices(items, target.quote));
     },
-    [target.quote, target.nonce, target.page],
+    [target.quote, clampedPage],
   );
 
   useEffect(() => {

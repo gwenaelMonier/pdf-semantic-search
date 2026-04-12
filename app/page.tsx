@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { ChatPanel, type CitationTarget } from "@/components/ChatPanel";
 import { PdfUploader, type UploadResult } from "@/components/PdfUploader";
 
@@ -16,10 +16,6 @@ export default function Home() {
   const [session, setSession] = useState<UploadResult | null>(null);
   const [target, setTarget] = useState<ViewerTarget>({ page: 1, nonce: 0 });
 
-  const handlePageClick = useCallback((t: CitationTarget) => {
-    setTarget((prev) => ({ ...t, nonce: prev.nonce + 1 }));
-  }, []);
-
   if (!session) {
     return <PdfUploader onUploaded={setSession} />;
   }
@@ -30,7 +26,9 @@ export default function Home() {
         sessionId={session.sessionId}
         filename={session.filename}
         pageCount={session.pageCount}
-        onPageClick={handlePageClick}
+        onPageClick={(t) =>
+          setTarget((prev) => ({ ...t, nonce: prev.nonce + 1 }))
+        }
         onReset={() => {
           setSession(null);
           setTarget({ page: 1, nonce: 0 });
