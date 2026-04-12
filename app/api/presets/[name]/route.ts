@@ -1,16 +1,13 @@
-import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
 const PRESETS_DIR = path.join(process.cwd(), "collective-agreement");
 const SAFE_NAME = /^[\w\-. ]+\.pdf$/;
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ name: string }> },
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ name: string }> }) {
   const { name: rawName } = await params;
   const name = decodeURIComponent(rawName);
 

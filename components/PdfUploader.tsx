@@ -87,9 +87,7 @@ export function PdfUploader({ onUploaded }: Props) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-6">
       <div className="w-full max-w-xl">
-        <h1 className="mb-2 text-center text-3xl font-semibold text-zinc-900">
-          HR Assistant
-        </h1>
+        <h1 className="mb-2 text-center text-3xl font-semibold text-zinc-900">HR Assistant</h1>
         <p className="mb-8 text-center text-sm text-zinc-500">
           Importez une convention collective et posez vos questions.
         </p>
@@ -126,15 +124,11 @@ export function PdfUploader({ onUploaded }: Props) {
           {loading ? (
             <div className="text-center">
               <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-blue-500" />
-              <p className="text-sm text-zinc-600">
-                Extraction du texte en cours…
-              </p>
+              <p className="text-sm text-zinc-600">Extraction du texte en cours…</p>
             </div>
           ) : (
             <div className="text-center">
-              <p className="mb-1 text-base font-medium text-zinc-800">
-                Glissez-déposez un PDF ici
-              </p>
+              <p className="mb-1 text-base font-medium text-zinc-800">Glissez-déposez un PDF ici</p>
               <p className="text-sm text-zinc-500">ou cliquez pour sélectionner</p>
               <p className="mt-4 text-xs text-zinc-400">
                 PDF uniquement · 30 Mo max · 500 pages max
@@ -143,11 +137,7 @@ export function PdfUploader({ onUploaded }: Props) {
           )}
         </label>
 
-        {error && (
-          <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
         {presets.length > 0 && (
           <div className="mt-8">
@@ -183,9 +173,7 @@ export function PdfUploader({ onUploaded }: Props) {
                           Chargement…
                         </span>
                       ) : (
-                        <span className="text-xs font-medium text-blue-600">
-                          Charger
-                        </span>
+                        <span className="text-xs font-medium text-blue-600">Charger</span>
                       )}
                     </button>
                   </li>

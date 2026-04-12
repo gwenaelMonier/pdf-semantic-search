@@ -1,6 +1,5 @@
-import { GoogleGenerativeAI, type Content } from "@google/generative-ai";
-
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+import { type Content, GoogleGenerativeAI } from "@google/generative-ai";
+import { getEnv } from "@/lib/env";
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
@@ -37,9 +36,7 @@ Si une affirmation agrège plusieurs pages sans qu'un extrait unique ne la souti
 Le document est fourni ci-dessous, avec chaque page délimitée par des balises [PAGE X] ... [/PAGE X].`;
 
 function buildDocumentContext(pages: string[]): string {
-  return pages
-    .map((text, i) => `[PAGE ${i + 1}]\n${text}\n[/PAGE ${i + 1}]`)
-    .join("\n\n");
+  return pages.map((text, i) => `[PAGE ${i + 1}]\n${text}\n[/PAGE ${i + 1}]`).join("\n\n");
 }
 
 export async function* streamAnswer(opts: {
@@ -47,12 +44,10 @@ export async function* streamAnswer(opts: {
   history: ChatTurn[];
   question: string;
 }): AsyncGenerator<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY manquante dans .env.local");
-
-  const genAI = new GoogleGenerativeAI(apiKey);
+  const env = getEnv();
+  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({
-    model: MODEL,
+    model: env.GEMINI_MODEL,
     systemInstruction: SYSTEM_PROMPT,
   });
 

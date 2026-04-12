@@ -1,9 +1,9 @@
 "use client";
 
-import { Children, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Children, type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { parseCitations, type CitationTarget } from "@/lib/citations";
+import { type CitationTarget, parseCitations } from "@/lib/citations";
 
 export type Message = {
   role: "user" | "assistant";
@@ -47,9 +47,10 @@ function renderWithCitations(
     }
     parts.push(
       <span key={`cite-${key++}`} className="inline-flex flex-wrap gap-1 align-baseline">
-        {c.targets.map((t, i) => (
+        {c.targets.map((t) => (
           <button
-            key={i}
+            type="button"
+            key={`${t.page}-${t.quote ?? ""}`}
             onClick={() => onPageClick(t)}
             title={t.quote}
             className="inline-flex items-center rounded-md bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 transition hover:bg-blue-200"
@@ -65,18 +66,13 @@ function renderWithCitations(
   return parts;
 }
 
-export function ChatPanel({
-  sessionId,
-  filename,
-  pageCount,
-  onPageClick,
-  onReset,
-}: Props) {
+export function ChatPanel({ sessionId, filename, pageCount, onPageClick, onReset }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: we want to re-scroll every time messages change, including during streaming
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
@@ -142,12 +138,11 @@ export function ChatPanel({
     <div className="flex h-full min-h-0 flex-col bg-white">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-200 px-4">
         <div className="min-w-0">
-          <h2 className="truncate text-sm font-semibold text-zinc-900">
-            {filename}
-          </h2>
+          <h2 className="truncate text-sm font-semibold text-zinc-900">{filename}</h2>
           <p className="text-xs text-zinc-500">{pageCount} pages</p>
         </div>
         <button
+          type="button"
           onClick={onReset}
           className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
         >
@@ -163,10 +158,8 @@ export function ChatPanel({
         )}
         <div className="space-y-4">
           {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-            >
+            // biome-ignore lint/suspicious/noArrayIndexKey: chat messages are append-only, index is stable
+            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
                 className={`max-w-[90%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   m.role === "user"
@@ -190,14 +183,10 @@ export function ChatPanel({
                           </li>
                         ),
                         ul: ({ children }) => (
-                          <ul className="mb-2 list-disc pl-5 last:mb-0">
-                            {children}
-                          </ul>
+                          <ul className="mb-2 list-disc pl-5 last:mb-0">{children}</ul>
                         ),
                         ol: ({ children }) => (
-                          <ol className="mb-2 list-decimal pl-5 last:mb-0">
-                            {children}
-                          </ol>
+                          <ol className="mb-2 list-decimal pl-5 last:mb-0">{children}</ol>
                         ),
                         h1: ({ children }) => (
                           <h1 className="mb-2 mt-4 text-lg font-bold text-zinc-900 first:mt-0">
@@ -236,9 +225,7 @@ export function ChatPanel({
                         ),
                         table: ({ children }) => (
                           <div className="my-2 overflow-x-auto">
-                            <table className="min-w-full border-collapse text-xs">
-                              {children}
-                            </table>
+                            <table className="min-w-full border-collapse text-xs">{children}</table>
                           </div>
                         ),
                         th: ({ children }) => (
@@ -265,10 +252,7 @@ export function ChatPanel({
         </div>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="shrink-0 border-t border-zinc-200 p-4"
-      >
+      <form onSubmit={handleSubmit} className="shrink-0 border-t border-zinc-200 p-4">
         <div className="flex gap-2">
           <input
             type="text"

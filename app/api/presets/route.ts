@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 

@@ -44,7 +44,6 @@ function escapeHtml(s: string): string {
 }
 
 type PdfTextItem = { str?: string };
-type PdfTextContent = { items: PdfTextItem[] };
 
 /**
  * Given the text items of a PDF page and a target quote, returns the set of
@@ -60,10 +59,7 @@ type PdfTextContent = { items: PdfTextItem[] };
  * quote): trigram scan — mark any item that contains a normalized trigram
  * from the quote, plus immediate neighbours to bridge single-word items.
  */
-function computeHighlightIndices(
-  items: PdfTextItem[],
-  quote: string,
-): Set<number> {
+function computeHighlightIndices(items: PdfTextItem[], quote: string): Set<number> {
   const set = new Set<number>();
   const normQuote = normalize(quote);
   if (!normQuote) return set;
@@ -119,12 +115,8 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
   const pageWrapperRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number>(600);
   const [fileData, setFileData] = useState<{ data: Uint8Array } | null>(null);
-  const [highlightIndices, setHighlightIndices] = useState<Set<number>>(
-    new Set(),
-  );
-  const textItemsRef = useRef<{ page: number; items: PdfTextItem[] } | null>(
-    null,
-  );
+  const [highlightIndices, setHighlightIndices] = useState<Set<number>>(new Set());
+  const textItemsRef = useRef<{ page: number; items: PdfTextItem[] } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -152,6 +144,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
   // Recompute indices from the cached text items whenever the target
   // changes. If we haven't extracted this page's text yet, the cache is
   // empty and we wait for onGetTextSuccess to fill it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: target.nonce is an intentional re-trigger when the same citation is re-clicked
   useEffect(() => {
     const cached = textItemsRef.current;
     if (!target.quote || !cached || cached.page !== clampedPage) {
@@ -184,6 +177,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
     [target.quote, clampedPage],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: target.nonce is an intentional re-trigger when the same citation is re-clicked
   useEffect(() => {
     if (!target.quote) return;
     const root = pageWrapperRef.current;
@@ -212,6 +206,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
       `}</style>
       <header className="flex h-14 shrink-0 items-center justify-center gap-3 border-b border-zinc-200 bg-white px-4">
         <button
+          type="button"
           onClick={() => onPageChange(Math.max(1, clampedPage - 1))}
           disabled={clampedPage <= 1}
           className="rounded-md border border-zinc-300 px-2 py-1 text-xs disabled:opacity-40"
@@ -226,14 +221,15 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
             min={1}
             max={numPages || 1}
             onChange={(e) => {
-              const n = parseInt(e.target.value, 10);
-              if (!isNaN(n)) onPageChange(n);
+              const n = Number.parseInt(e.target.value, 10);
+              if (!Number.isNaN(n)) onPageChange(n);
             }}
             className="w-14 rounded border border-zinc-300 bg-white px-1 py-0.5 text-center text-sm"
           />{" "}
           / {numPages || "…"}
         </span>
         <button
+          type="button"
           onClick={() => onPageChange(Math.min(numPages, clampedPage + 1))}
           disabled={clampedPage >= numPages}
           className="rounded-md border border-zinc-300 px-2 py-1 text-xs disabled:opacity-40"

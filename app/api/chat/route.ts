@@ -1,15 +1,31 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { streamAnswer } from "@/lib/gemini";
 import { getSession } from "@/lib/session";
-import { streamAnswer, type ChatTurn } from "@/lib/gemini";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+
+const MAX_HISTORY_TURNS = 20;
+const MAX_TURN_CHARS = 8_000;
+const MAX_QUESTION_CHARS = 4_000;
+
+const ChatTurnSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string().min(1).max(MAX_TURN_CHARS),
+});
+
+const ChatRequestSchema = z.object({
+  sessionId: z.string().min(1),
+  question: z.string().min(1).max(MAX_QUESTION_CHARS),
+  history: z.array(ChatTurnSchema).max(MAX_HISTORY_TURNS).optional().default([]),
+});
 
 function formatStreamError(err: unknown): string {
   const e = err as { status?: number; message?: string };
   if (e?.status === 429) {
     const match = e.message?.match(/retry in ([\d.]+)s/i);
-    const delay = match ? Math.ceil(parseFloat(match[1])) : null;
+    const delay = match ? Math.ceil(Number.parseFloat(match[1])) : null;
     const retry = delay ? ` Réessayez dans environ ${delay}s.` : "";
     return (
       "\n\n> ⚠️ **Quota Gemini épuisé** (palier gratuit).\n> " +
@@ -23,15 +39,15 @@ function formatStreamError(err: unknown): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as {
-      sessionId?: string;
-      question?: string;
-      history?: ChatTurn[];
-    };
-
-    if (!body.sessionId || !body.question) {
-      return NextResponse.json({ error: "Paramètres manquants." }, { status: 400 });
+    const raw = await req.json();
+    const parsed = ChatRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Paramètres invalides.", issues: parsed.error.issues },
+        { status: 400 },
+      );
     }
+    const body = parsed.data;
 
     const session = getSession(body.sessionId);
     if (!session) {
@@ -47,8 +63,8 @@ export async function POST(req: NextRequest) {
         try {
           for await (const chunk of streamAnswer({
             pages: session.pages,
-            history: body.history ?? [],
-            question: body.question!,
+            history: body.history,
+            question: body.question,
           })) {
             controller.enqueue(encoder.encode(chunk));
           }

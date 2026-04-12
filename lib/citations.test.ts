@@ -72,11 +72,7 @@ describe("parseCitations", () => {
 
   it("parses a multi-page citation", () => {
     const out = parseCitations("Cf. [p. 12, 34, 56].");
-    expect(out[0].targets).toEqual([
-      { page: 12 },
-      { page: 34 },
-      { page: 56 },
-    ]);
+    expect(out[0].targets).toEqual([{ page: 12 }, { page: 34 }, { page: 56 }]);
   });
 
   it("parses a range citation", () => {
@@ -86,15 +82,11 @@ describe("parseCitations", () => {
 
   it("parses a quoted single-page citation", () => {
     const out = parseCitations('Réponse [p. 12: "un extrait important"].');
-    expect(out[0].targets).toEqual([
-      { page: 12, quote: "un extrait important" },
-    ]);
+    expect(out[0].targets).toEqual([{ page: 12, quote: "un extrait important" }]);
   });
 
   it("parses a quoted range citation and applies quote to each page", () => {
-    const out = parseCitations(
-      'Cf. [p. 48-49: "DURÉES DES DÉLAIS DE PRÉVENANCE"].',
-    );
+    const out = parseCitations('Cf. [p. 48-49: "DURÉES DES DÉLAIS DE PRÉVENANCE"].');
     expect(out[0].targets).toEqual([
       { page: 48, quote: "DURÉES DES DÉLAIS DE PRÉVENANCE" },
       { page: 49, quote: "DURÉES DES DÉLAIS DE PRÉVENANCE" },
@@ -115,11 +107,7 @@ describe("parseCitations", () => {
     expect(out).toHaveLength(3);
     expect(out[0].targets[0]).toEqual({ page: 5, quote: "un" });
     expect(out[1].targets).toEqual([{ page: 10 }, { page: 11 }]);
-    expect(out[2].targets).toEqual([
-      { page: 20 },
-      { page: 21 },
-      { page: 22 },
-    ]);
+    expect(out[2].targets).toEqual([{ page: 20 }, { page: 21 }, { page: 22 }]);
   });
 
   it("reports correct start/end offsets", () => {
@@ -149,12 +137,8 @@ describe("parseCitations", () => {
   });
 
   it("handles quotes containing punctuation and accents", () => {
-    const out = parseCitations(
-      '[p. 5: "à l\'initiative de l\'employeur : 24 heures"]',
-    );
-    expect(out[0].targets[0].quote).toBe(
-      "à l'initiative de l'employeur : 24 heures",
-    );
+    const out = parseCitations("[p. 5: \"à l'initiative de l'employeur : 24 heures\"]");
+    expect(out[0].targets[0].quote).toBe("à l'initiative de l'employeur : 24 heures");
   });
 
   it("is safe to call repeatedly (no regex lastIndex leak)", () => {

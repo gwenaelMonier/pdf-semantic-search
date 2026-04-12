@@ -8,8 +8,7 @@ export type ParsedCitation = {
 };
 
 // Matches [p. 12: "extrait"] OR [p. 12-14: "extrait"] OR [p. 12, 34] OR [p. 52-53]
-export const CITATION_REGEX =
-  /\[p\.\s*([\d,\s\-–]+)\s*:\s*"([^"]+)"\]|\[p\.\s*([\d,\s\-–]+)\]/g;
+export const CITATION_REGEX = /\[p\.\s*([\d,\s\-–]+)\s*:\s*"([^"]+)"\]|\[p\.\s*([\d,\s\-–]+)\]/g;
 
 const MAX_RANGE_SPAN = 50;
 
@@ -22,11 +21,11 @@ export function expandPageList(raw: string): number[] {
     if (range) {
       // Segment looks like a range: accept it only if valid, never fall
       // through to single-page parsing (which would half-parse "12-10" as 12).
-      const start = parseInt(range[1], 10);
-      const end = parseInt(range[2], 10);
+      const start = Number.parseInt(range[1], 10);
+      const end = Number.parseInt(range[2], 10);
       if (
-        !isNaN(start) &&
-        !isNaN(end) &&
+        !Number.isNaN(start) &&
+        !Number.isNaN(end) &&
         end >= start &&
         end - start < MAX_RANGE_SPAN
       ) {
@@ -35,7 +34,7 @@ export function expandPageList(raw: string): number[] {
       continue;
     }
     if (/^\d+$/.test(trimmed)) {
-      pages.add(parseInt(trimmed, 10));
+      pages.add(Number.parseInt(trimmed, 10));
     }
   }
   return [...pages].sort((a, b) => a - b);
@@ -44,8 +43,8 @@ export function expandPageList(raw: string): number[] {
 export function parseCitations(text: string): ParsedCitation[] {
   const out: ParsedCitation[] = [];
   const re = new RegExp(CITATION_REGEX.source, CITATION_REGEX.flags);
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(text)) !== null) {
+  let match = re.exec(text);
+  while (match !== null) {
     const quoted = match[2];
     const pagesRaw = quoted ? match[1] : match[3];
     const pages = expandPageList(pagesRaw);
@@ -59,6 +58,7 @@ export function parseCitations(text: string): ParsedCitation[] {
       raw: match[0],
       targets,
     });
+    match = re.exec(text);
   }
   return out;
 }

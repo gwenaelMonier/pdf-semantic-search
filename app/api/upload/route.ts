@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { extractPdfPages } from "@/lib/pdf";
 import { createSession } from "@/lib/session";
 
@@ -41,9 +41,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("upload error", err);
-    return NextResponse.json(
-      { error: "Erreur lors du traitement du PDF." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Erreur lors du traitement du PDF." }, { status: 500 });
   }
 }
