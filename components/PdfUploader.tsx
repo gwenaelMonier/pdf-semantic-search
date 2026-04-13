@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type UploadResult = {
-  sessionId: string;
+  pages: string[];
   filename: string;
   pageCount: number;
   file: File;
@@ -51,7 +51,7 @@ export function PdfUploader({ onUploaded }: Props) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erreur upload");
         onUploaded({
-          sessionId: data.sessionId,
+          pages: data.pages,
           filename: data.filename,
           pageCount: data.pageCount,
           file,

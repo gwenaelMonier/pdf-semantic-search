@@ -7,8 +7,9 @@ export type ParsedCitation = {
   targets: CitationTarget[];
 };
 
-// Matches [p. 12: "extrait"] OR [p. 12-14: "extrait"] OR [p. 12, 34] OR [p. 52-53]
-export const CITATION_REGEX = /\[p\.\s*([\d,\s\-–]+)\s*:\s*"([^"]+)"\]|\[p\.\s*([\d,\s\-–]+)\]/g;
+// Matches [p. 12: "q1", "q2", ...] OR [p. 12-14: "extrait"] OR [p. 12, 34] OR [p. 52-53]
+export const CITATION_REGEX =
+  /\[p\.\s*([\d,\s\-–]+)\s*:\s*((?:"[^"]+"(?:\s*,\s*"[^"]+")*)\s*)\]|\[p\.\s*([\d,\s\-–]+)\]/g;
 
 const MAX_RANGE_SPAN = 50;
 
@@ -45,13 +46,20 @@ export function parseCitations(text: string): ParsedCitation[] {
   const re = new RegExp(CITATION_REGEX.source, CITATION_REGEX.flags);
   let match = re.exec(text);
   while (match !== null) {
-    const quoted = match[2];
-    const pagesRaw = quoted ? match[1] : match[3];
+    const quotesRaw = match[2];
+    const pagesRaw = quotesRaw ? match[1] : match[3];
     const pages = expandPageList(pagesRaw);
     if (pages.length === 0) continue;
-    const targets: CitationTarget[] = quoted
-      ? pages.map((page) => ({ page, quote: quoted }))
-      : pages.map((page) => ({ page }));
+    let targets: CitationTarget[];
+    if (quotesRaw) {
+      const quotes: string[] = [];
+      const quoteRe = /"([^"]+)"/g;
+      let q: RegExpExecArray | null;
+      while ((q = quoteRe.exec(quotesRaw)) !== null) quotes.push(q[1]);
+      targets = pages.flatMap((page) => quotes.map((quote) => ({ page, quote })));
+    } else {
+      targets = pages.map((page) => ({ page }));
+    }
     out.push({
       start: match.index,
       end: match.index + match[0].length,

@@ -2,7 +2,6 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getLlmClient } from "@/lib/llm";
 import { LlmQuotaError, LlmTransientError, normalizeLlmError } from "@/lib/llm-errors";
-import { sessionStore } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -17,7 +16,7 @@ const ChatTurnSchema = z.object({
 });
 
 const ChatRequestSchema = z.object({
-  sessionId: z.string().min(1),
+  pages: z.array(z.string()).min(1).max(500),
   question: z.string().min(1).max(MAX_QUESTION_CHARS),
   history: z.array(ChatTurnSchema).max(MAX_HISTORY_TURNS).optional().default([]),
 });
@@ -51,21 +50,13 @@ export async function POST(req: NextRequest) {
     }
     const body = parsed.data;
 
-    const session = sessionStore.get(body.sessionId);
-    if (!session) {
-      return NextResponse.json(
-        { error: "Session introuvable. Rechargez le PDF." },
-        { status: 404 },
-      );
-    }
-
     const llm = getLlmClient();
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of llm.streamAnswer({
-            pages: session.pages,
+            pages: body.pages,
             history: body.history,
             question: body.question,
           })) {

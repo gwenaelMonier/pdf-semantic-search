@@ -5,6 +5,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import type { ViewerTarget } from "@/app/page";
+import { findHighlight, type PdfTextItem } from "@/lib/pdf-highlight";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -14,27 +15,6 @@ type Props = {
   onPageChange: (page: number) => void;
 };
 
-function normalize(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function buildTrigrams(norm: string): string[] {
-  if (!norm) return [];
-  const words = norm.split(" ");
-  if (words.length < 3) return [norm];
-  const trigrams: string[] = [];
-  for (let i = 0; i <= words.length - 3; i++) {
-    trigrams.push(words.slice(i, i + 3).join(" "));
-  }
-  return trigrams;
-}
-
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -43,70 +23,12 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-type PdfTextItem = { str?: string };
-
-/**
- * Given the text items of a PDF page and a target quote, returns the set of
- * item indices that overlap the quote's location on the page.
- *
- * Strategy:
- * 1. Normalize every item and concatenate with single-space separators,
- *    tracking each item's char range in the concatenated string.
- * 2. Find the normalized quote as a substring of the concatenated text.
- * 3. Mark every item whose range overlaps the quote's range.
- *
- * Fallback (when exact substring match fails, e.g. the LLM reformulated the
- * quote): trigram scan — mark any item that contains a normalized trigram
- * from the quote, plus immediate neighbours to bridge single-word items.
- */
-function computeHighlightIndices(items: PdfTextItem[], quote: string): Set<number> {
-  const set = new Set<number>();
-  const normQuote = normalize(quote);
-  if (!normQuote) return set;
-
-  const itemRanges: { idx: number; start: number; end: number }[] = [];
-  let concat = "";
-  items.forEach((item, idx) => {
-    const n = normalize(item.str ?? "");
-    if (!n) return;
-    if (concat.length > 0) concat += " ";
-    const start = concat.length;
-    concat += n;
-    itemRanges.push({ idx, start, end: concat.length });
-  });
-
-  const pos = concat.indexOf(normQuote);
-  if (pos !== -1) {
-    const quoteEnd = pos + normQuote.length;
-    for (const r of itemRanges) {
-      if (r.end > pos && r.start < quoteEnd) set.add(r.idx);
-    }
-    return set;
+function computeHighlightIndices(items: PdfTextItem[], quote: string, page: number): Set<number> {
+  const res = findHighlight(items, quote);
+  if (process.env.NODE_ENV !== "production" && !res.matched) {
+    console.debug("[PdfViewer] highlight miss", { page, quote, strategy: res.strategy });
   }
-
-  const trigrams = buildTrigrams(normQuote);
-  if (trigrams.length === 0) return set;
-  const hits: number[] = [];
-  itemRanges.forEach((r, listIdx) => {
-    const n = concat.slice(r.start, r.end);
-    if (trigrams.some((t) => n.includes(t) || t.includes(n))) {
-      hits.push(listIdx);
-    }
-  });
-  // Bridge gaps of 1-2 items between hits (single-word items skipped by
-  // per-item matching).
-  for (let i = 0; i < hits.length; i++) {
-    set.add(itemRanges[hits[i]].idx);
-    if (i < hits.length - 1) {
-      const gap = hits[i + 1] - hits[i];
-      if (gap <= 3) {
-        for (let j = hits[i] + 1; j < hits[i + 1]; j++) {
-          set.add(itemRanges[j].idx);
-        }
-      }
-    }
-  }
-  return set;
+  return res.indices;
 }
 
 export function PdfViewer({ file, target, onPageChange }: Props) {
@@ -151,7 +73,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
       setHighlightIndices(new Set());
       return;
     }
-    setHighlightIndices(computeHighlightIndices(cached.items, target.quote));
+    setHighlightIndices(computeHighlightIndices(cached.items, target.quote, clampedPage));
   }, [target.nonce, target.page, target.quote, clampedPage]);
 
   const customTextRenderer = useCallback(
@@ -172,17 +94,20 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
         setHighlightIndices(new Set());
         return;
       }
-      setHighlightIndices(computeHighlightIndices(items, target.quote));
+      setHighlightIndices(computeHighlightIndices(items, target.quote, clampedPage));
     },
     [target.quote, clampedPage],
   );
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: target.nonce is an intentional re-trigger when the same citation is re-clicked
+  // Scroll fires AFTER React re-renders with new highlightIndices, so marks in the DOM
+  // already correspond to the current citation — avoids scrolling to stale marks.
+  // computeHighlightIndices always returns a new Set, so this triggers even for re-clicks.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — fires only when highlights change, not when target.quote changes
   useEffect(() => {
-    if (!target.quote) return;
+    if (highlightIndices.size === 0) return;
     const root = pageWrapperRef.current;
     if (!root) return;
-    const deadline = Date.now() + 2000;
+    const deadline = Date.now() + 1000;
     const tryScroll = () => {
       const mark = root.querySelector("mark.hr-highlight");
       if (mark) {
@@ -192,7 +117,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
       if (Date.now() < deadline) requestAnimationFrame(tryScroll);
     };
     requestAnimationFrame(tryScroll);
-  }, [target.nonce, target.page, target.quote]);
+  }, [highlightIndices]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-100">

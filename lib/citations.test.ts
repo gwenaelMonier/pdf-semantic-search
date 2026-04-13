@@ -136,6 +136,28 @@ describe("parseCitations", () => {
     expect(parseCitations("Voir p. 12 pour plus d'infos.")).toEqual([]);
   });
 
+  it("parses a multi-quote citation on one page", () => {
+    const out = parseCitations(
+      '[p. 49: "Au-delà de 1 mois 48 heures", "Au-delà de 3 mois 48 heures", "Au-delà de 6 mois 48 heures"]',
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].targets).toEqual([
+      { page: 49, quote: "Au-delà de 1 mois 48 heures" },
+      { page: 49, quote: "Au-delà de 3 mois 48 heures" },
+      { page: 49, quote: "Au-delà de 6 mois 48 heures" },
+    ]);
+  });
+
+  it("parses multi-quote citation on a page range", () => {
+    const out = parseCitations('[p. 48-49: "quote A", "quote B"]');
+    expect(out[0].targets).toEqual([
+      { page: 48, quote: "quote A" },
+      { page: 48, quote: "quote B" },
+      { page: 49, quote: "quote A" },
+      { page: 49, quote: "quote B" },
+    ]);
+  });
+
   it("handles quotes containing punctuation and accents", () => {
     const out = parseCitations("[p. 5: \"à l'initiative de l'employeur : 24 heures\"]");
     expect(out[0].targets[0].quote).toBe("à l'initiative de l'employeur : 24 heures");

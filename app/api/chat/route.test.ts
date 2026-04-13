@@ -2,25 +2,17 @@ import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LlmQuotaError, LlmTransientError } from "@/lib/llm-errors";
 
-const { streamAnswerMock, sessionGetMock } = vi.hoisted(() => ({
+const { streamAnswerMock } = vi.hoisted(() => ({
   streamAnswerMock: vi.fn(),
-  sessionGetMock: vi.fn(),
 }));
 
 vi.mock("@/lib/llm", () => ({
   getLlmClient: () => ({ streamAnswer: streamAnswerMock }),
 }));
 
-vi.mock("@/lib/session", () => ({
-  sessionStore: {
-    get: sessionGetMock,
-    create: vi.fn(),
-    delete: vi.fn(),
-    size: () => 0,
-  },
-}));
-
 import { POST } from "@/app/api/chat/route";
+
+const PAGES = ["page 1", "page 2"];
 
 function makeRequest(body: unknown): NextRequest {
   return new Request("http://localhost/api/chat", {
@@ -36,13 +28,12 @@ async function* fromChunks(chunks: string[]): AsyncIterable<string> {
 
 beforeEach(() => {
   streamAnswerMock.mockReset();
-  sessionGetMock.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 describe("POST /api/chat", () => {
   it("400 when body is missing required fields", async () => {
-    const res = await POST(makeRequest({ sessionId: "s1" }));
+    const res = await POST(makeRequest({ pages: PAGES }));
     expect(res.status).toBe(400);
     const json = await res.json();
     expect(json.error).toBe("Paramètres invalides.");
@@ -50,74 +41,50 @@ describe("POST /api/chat", () => {
   });
 
   it("400 when question exceeds max length", async () => {
-    const res = await POST(makeRequest({ sessionId: "s1", question: "x".repeat(5000) }));
+    const res = await POST(makeRequest({ pages: PAGES, question: "x".repeat(5000) }));
     expect(res.status).toBe(400);
   });
 
   it("400 when history exceeds max turns", async () => {
     const history = Array.from({ length: 25 }, () => ({ role: "user", content: "hi" }));
-    const res = await POST(makeRequest({ sessionId: "s1", question: "q", history }));
+    const res = await POST(makeRequest({ pages: PAGES, question: "q", history }));
     expect(res.status).toBe(400);
   });
 
-  it("404 when session is unknown", async () => {
-    sessionGetMock.mockReturnValue(undefined);
-    const res = await POST(makeRequest({ sessionId: "ghost", question: "hello" }));
-    expect(res.status).toBe(404);
-    const json = await res.json();
-    expect(json.error).toMatch(/Session introuvable/);
+  it("400 when pages array is empty", async () => {
+    const res = await POST(makeRequest({ pages: [], question: "q" }));
+    expect(res.status).toBe(400);
   });
 
   it("streams concatenated chunks on success", async () => {
-    sessionGetMock.mockReturnValue({
-      id: "s1",
-      filename: "doc.pdf",
-      pages: ["page 1"],
-      pageCount: 1,
-      createdAt: Date.now(),
-    });
     streamAnswerMock.mockImplementation(() => fromChunks(["Hello", ", ", "world"]));
 
-    const res = await POST(makeRequest({ sessionId: "s1", question: "q" }));
+    const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/plain");
     const body = await res.text();
     expect(body).toBe("Hello, world");
 
     expect(streamAnswerMock).toHaveBeenCalledWith({
-      pages: ["page 1"],
+      pages: PAGES,
       history: [],
       question: "q",
     });
   });
 
   it("passes a valid history through to the llm", async () => {
-    sessionGetMock.mockReturnValue({
-      id: "s1",
-      filename: "doc.pdf",
-      pages: ["p"],
-      pageCount: 1,
-      createdAt: Date.now(),
-    });
     streamAnswerMock.mockImplementation(() => fromChunks(["ok"]));
 
     const history = [
       { role: "user", content: "prev q" },
       { role: "assistant", content: "prev a" },
     ];
-    const res = await POST(makeRequest({ sessionId: "s1", question: "q", history }));
+    const res = await POST(makeRequest({ pages: PAGES, question: "q", history }));
     await res.text();
     expect(streamAnswerMock).toHaveBeenCalledWith(expect.objectContaining({ history }));
   });
 
   it("appends a formatted quota message when llm throws LlmQuotaError", async () => {
-    sessionGetMock.mockReturnValue({
-      id: "s1",
-      filename: "doc.pdf",
-      pages: ["p"],
-      pageCount: 1,
-      createdAt: Date.now(),
-    });
     streamAnswerMock.mockImplementation(() =>
       (async function* () {
         yield "partial";
@@ -125,7 +92,7 @@ describe("POST /api/chat", () => {
       })(),
     );
 
-    const res = await POST(makeRequest({ sessionId: "s1", question: "q" }));
+    const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     const body = await res.text();
     expect(body).toContain("partial");
     expect(body).toContain("Quota Gemini épuisé");
@@ -133,13 +100,6 @@ describe("POST /api/chat", () => {
   });
 
   it("appends a transient error message when llm throws LlmTransientError", async () => {
-    sessionGetMock.mockReturnValue({
-      id: "s1",
-      filename: "doc.pdf",
-      pages: ["p"],
-      pageCount: 1,
-      createdAt: Date.now(),
-    });
     streamAnswerMock.mockImplementation(() => ({
       [Symbol.asyncIterator]() {
         return {
@@ -148,19 +108,12 @@ describe("POST /api/chat", () => {
       },
     }));
 
-    const res = await POST(makeRequest({ sessionId: "s1", question: "q" }));
+    const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     const body = await res.text();
     expect(body).toContain("Erreur transitoire");
   });
 
   it("appends a generic error message on non-429 failure", async () => {
-    sessionGetMock.mockReturnValue({
-      id: "s1",
-      filename: "doc.pdf",
-      pages: ["p"],
-      pageCount: 1,
-      createdAt: Date.now(),
-    });
     streamAnswerMock.mockImplementation(() => ({
       [Symbol.asyncIterator]() {
         return {
@@ -169,7 +122,7 @@ describe("POST /api/chat", () => {
       },
     }));
 
-    const res = await POST(makeRequest({ sessionId: "s1", question: "q" }));
+    const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     const body = await res.text();
     expect(body).toContain("Erreur lors de la génération");
   });
