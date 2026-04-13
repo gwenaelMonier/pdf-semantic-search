@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { extractPdfPages } from "@/lib/pdf";
-import { createSession } from "@/lib/session";
+import { sessionStore } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const session = createSession(file.name, pages);
+    const session = sessionStore.create(file.name, pages);
     return NextResponse.json({
       sessionId: session.id,
       filename: session.filename,

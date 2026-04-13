@@ -1,7 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { streamAnswer } from "@/lib/gemini";
-import { getSession } from "@/lib/session";
+import { getLlmClient } from "@/lib/llm";
+import { LlmQuotaError, LlmTransientError, normalizeLlmError } from "@/lib/llm-errors";
+import { sessionStore } from "@/lib/session";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -22,17 +23,18 @@ const ChatRequestSchema = z.object({
 });
 
 function formatStreamError(err: unknown): string {
-  const e = err as { status?: number; message?: string };
-  if (e?.status === 429) {
-    const match = e.message?.match(/retry in ([\d.]+)s/i);
-    const delay = match ? Math.ceil(Number.parseFloat(match[1])) : null;
-    const retry = delay ? ` Réessayez dans environ ${delay}s.` : "";
+  const e = normalizeLlmError(err);
+  if (e instanceof LlmQuotaError) {
+    const retry = e.retryAfterSeconds ? ` Réessayez dans environ ${e.retryAfterSeconds}s.` : "";
     return (
       "\n\n> ⚠️ **Quota Gemini épuisé** (palier gratuit).\n> " +
       "Le modèle `gemini-2.5-flash` est limité à 20 requêtes par jour sur ce compte." +
       retry +
       "\n> Vous pouvez passer à `gemini-2.5-flash-lite` via la variable d'environnement `GEMINI_MODEL`."
     );
+  }
+  if (e instanceof LlmTransientError) {
+    return "\n\n[Erreur transitoire côté Gemini. Réessayez dans quelques instants.]";
   }
   return "\n\n[Erreur lors de la génération de la réponse.]";
 }
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
     const body = parsed.data;
 
-    const session = getSession(body.sessionId);
+    const session = sessionStore.get(body.sessionId);
     if (!session) {
       return NextResponse.json(
         { error: "Session introuvable. Rechargez le PDF." },
@@ -57,11 +59,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const llm = getLlmClient();
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of streamAnswer({
+          for await (const chunk of llm.streamAnswer({
             pages: session.pages,
             history: body.history,
             question: body.question,
