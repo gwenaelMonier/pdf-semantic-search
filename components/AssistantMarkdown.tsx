@@ -9,6 +9,7 @@ import type { CitationTarget } from "@/lib/citations";
 type Props = {
   content: string;
   onPageClick: (target: CitationTarget) => void;
+  isLoading?: boolean;
 };
 
 function renderSegments(text: string, onPageClick: (t: CitationTarget) => void): ReactNode[] {
@@ -51,7 +52,11 @@ function processChildrenForCitations(
   });
 }
 
-export function AssistantMarkdown({ content, onPageClick }: Props) {
+export function AssistantMarkdown({ content, onPageClick, isLoading }: Props) {
+  if (!content && isLoading) {
+    return <span className="animate-pulse text-sm text-zinc-500">Réflexion en cours …</span>;
+  }
+
   return (
     <div className="prose-chat">
       <ReactMarkdown

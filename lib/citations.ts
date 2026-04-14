@@ -54,8 +54,9 @@ export function parseCitations(text: string): ParsedCitation[] {
     if (quotesRaw) {
       const quotes: string[] = [];
       const quoteRe = /"([^"]+)"/g;
-      let q: RegExpExecArray | null;
-      while ((q = quoteRe.exec(quotesRaw)) !== null) quotes.push(q[1]);
+      for (const q of quotesRaw.matchAll(quoteRe)) {
+        quotes.push(q[1]);
+      }
       targets = pages.flatMap((page) => quotes.map((quote) => ({ page, quote })));
     } else {
       targets = pages.map((page) => ({ page }));

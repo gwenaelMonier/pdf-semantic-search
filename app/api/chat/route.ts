@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { embedQuery, topKPages } from "@/lib/embeddings";
 import { getLlmClient } from "@/lib/llm";
 import { LlmQuotaError, LlmTransientError, normalizeLlmError } from "@/lib/llm-errors";
 
@@ -7,8 +8,9 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 const MAX_HISTORY_TURNS = 20;
-const MAX_TURN_CHARS = 8_000;
+const MAX_TURN_CHARS = 32_000;
 const MAX_QUESTION_CHARS = 4_000;
+const RAG_TOP_K = 5;
 
 const ChatTurnSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -17,6 +19,7 @@ const ChatTurnSchema = z.object({
 
 const ChatRequestSchema = z.object({
   pages: z.array(z.string()).min(1).max(500),
+  embeddings: z.array(z.array(z.number())).optional(),
   question: z.string().min(1).max(MAX_QUESTION_CHARS),
   history: z.array(ChatTurnSchema).max(MAX_HISTORY_TURNS).optional().default([]),
 });
@@ -27,9 +30,8 @@ function formatStreamError(err: unknown): string {
     const retry = e.retryAfterSeconds ? ` Réessayez dans environ ${e.retryAfterSeconds}s.` : "";
     return (
       "\n\n> ⚠️ **Quota Gemini épuisé** (palier gratuit).\n> " +
-      "Le modèle `gemini-2.5-flash` est limité à 20 requêtes par jour sur ce compte." +
-      retry +
-      "\n> Vous pouvez passer à `gemini-2.5-flash-lite` via la variable d'environnement `GEMINI_MODEL`."
+      "Tous les modèles disponibles ont atteint leur limite quotidienne." +
+      retry
     );
   }
   if (e instanceof LlmTransientError) {
@@ -43,6 +45,7 @@ export async function POST(req: NextRequest) {
     const raw = await req.json();
     const parsed = ChatRequestSchema.safeParse(raw);
     if (!parsed.success) {
+      console.warn("zod issues", parsed.error.issues);
       return NextResponse.json(
         { error: "Paramètres invalides.", issues: parsed.error.issues },
         { status: 400 },
@@ -50,16 +53,48 @@ export async function POST(req: NextRequest) {
     }
     const body = parsed.data;
 
+    let contextPages: { index: number; text: string }[];
+    if (body.embeddings && body.embeddings.length === body.pages.length) {
+      const queryEmbedding = await embedQuery(body.question);
+      const topIndices = topKPages(body.embeddings, queryEmbedding, RAG_TOP_K);
+      contextPages = topIndices.map((i) => ({ index: i, text: body.pages[i] }));
+      console.log(
+        `[chat] mode rapide : ${contextPages.length}/${body.pages.length} pages sélectionnées (p. ${topIndices.map((i) => i + 1).join(", ")})`,
+      );
+    } else {
+      contextPages = body.pages.map((text, index) => ({ index, text }));
+      console.log(`[chat] mode complet : ${contextPages.length} pages envoyées`);
+    }
+
     const llm = getLlmClient();
     const encoder = new TextEncoder();
+
+    let streamResult: Awaited<ReturnType<typeof llm.streamAnswer>>;
+    try {
+      streamResult = await llm.streamAnswer({
+        pages: contextPages,
+        history: body.history,
+        question: body.question,
+      });
+    } catch (err) {
+      console.error("stream error", err);
+      const errorMsg = formatStreamError(err);
+      const errStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(errorMsg));
+          controller.close();
+        },
+      });
+      return new Response(errStream, {
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
+      });
+    }
+
+    const { model, chunks } = streamResult;
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of llm.streamAnswer({
-            pages: body.pages,
-            history: body.history,
-            question: body.question,
-          })) {
+          for await (const chunk of chunks) {
             controller.enqueue(encoder.encode(chunk));
           }
           controller.close();
@@ -75,6 +110,7 @@ export async function POST(req: NextRequest) {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",
+        "X-Gemini-Model": model,
       },
     });
   } catch (err) {

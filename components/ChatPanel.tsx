@@ -10,14 +10,16 @@ export type { CitationTarget };
 
 type Props = {
   pages: string[];
+  embeddings: number[][] | null;
   filename: string;
   pageCount: number;
   onPageClick: (target: CitationTarget) => void;
   onReset: () => void;
 };
 
-export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: Props) {
-  const { messages, streaming, send } = useChatStream(pages);
+export function ChatPanel({ pages, embeddings, filename, pageCount, onPageClick, onReset }: Props) {
+  const [ragEnabled, setRagEnabled] = useState(true);
+  const { messages, streaming, send } = useChatStream(pages, embeddings, ragEnabled);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -34,20 +36,54 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
     await send(question);
   }
 
+  const ragAvailable = embeddings !== null;
+  const ragActive = ragAvailable && ragEnabled;
+  const toggleDisabled = streaming || !ragAvailable;
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-200 px-4">
+      <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-4">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-zinc-900">{filename}</h2>
           <p className="text-xs text-zinc-500">{pageCount} pages</p>
         </div>
-        <button
-          type="button"
-          onClick={onReset}
-          className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
-        >
-          Nouveau PDF
-        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          <label
+            className={`flex items-center gap-2 text-xs ${
+              toggleDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+            }`}
+            title={
+              !ragAvailable
+                ? "Mode rapide indisponible (embeddings non calculés)"
+                : "Ne consulte que les pages pertinentes. Plus rapide mais moins bon sur les questions globales."
+            }
+          >
+            <span className="font-medium text-zinc-700">Mode rapide</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={ragActive}
+              disabled={toggleDisabled}
+              onClick={() => setRagEnabled((v) => !v)}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition disabled:cursor-not-allowed ${
+                ragActive ? "bg-blue-600" : "bg-zinc-300"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
+                  ragActive ? "translate-x-4" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </label>
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
+          >
+            Nouveau PDF
+          </button>
+        </div>
       </header>
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -60,18 +96,31 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
           {messages.map((m, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: chat messages are append-only, index is stable
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[90%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                  m.role === "user"
-                    ? "whitespace-pre-wrap bg-blue-600 text-white"
-                    : "bg-zinc-100 text-zinc-900"
-                }`}
-              >
-                {m.role === "assistant" ? (
-                  <AssistantMarkdown content={m.content} onPageClick={onPageClick} />
-                ) : (
-                  m.content
+              <div className="flex max-w-[90%] flex-col gap-1">
+                {m.role === "assistant" && (
+                  <p className="text-xs text-zinc-400">
+                    🤖 Hr assistant{m.model ? ` (powered by ${m.model})` : ""}
+                  </p>
                 )}
+                <div
+                  className={`rounded-2xl text-sm leading-relaxed ${
+                    m.role === "user"
+                      ? "whitespace-pre-wrap bg-blue-600 px-4 py-2.5 text-white"
+                      : streaming && i === messages.length - 1 && m.content === ""
+                        ? "w-fit bg-zinc-100 px-3 py-2.5 text-zinc-900"
+                        : "bg-zinc-100 px-4 py-2.5 text-zinc-900"
+                  }`}
+                >
+                  {m.role === "assistant" ? (
+                    <AssistantMarkdown
+                      content={m.content}
+                      onPageClick={onPageClick}
+                      isLoading={streaming && i === messages.length - 1 && m.content === ""}
+                    />
+                  ) : (
+                    m.content
+                  )}
+                </div>
               </div>
             </div>
           ))}

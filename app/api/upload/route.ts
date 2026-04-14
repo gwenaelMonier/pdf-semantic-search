@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { embedDocument } from "@/lib/embeddings";
 import { extractPdfPages } from "@/lib/pdf";
 
 export const runtime = "nodejs";
@@ -32,8 +33,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const embedStart = Date.now();
+    let embeddings: number[][] | null = null;
+    try {
+      embeddings = await embedDocument(pages);
+      console.log(`[upload] embedded ${pageCount} pages in ${Date.now() - embedStart}ms`);
+    } catch (err) {
+      console.warn("[upload] embedding failed, mode rapide indisponible:", err);
+    }
+
     return NextResponse.json({
       pages,
+      embeddings,
       filename: file.name,
       pageCount,
     });

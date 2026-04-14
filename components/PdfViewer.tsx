@@ -99,10 +99,6 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
     [target.quote, clampedPage],
   );
 
-  // Scroll fires AFTER React re-renders with new highlightIndices, so marks in the DOM
-  // already correspond to the current citation — avoids scrolling to stale marks.
-  // computeHighlightIndices always returns a new Set, so this triggers even for re-clicks.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional — fires only when highlights change, not when target.quote changes
   useEffect(() => {
     if (highlightIndices.size === 0) return;
     const root = pageWrapperRef.current;
