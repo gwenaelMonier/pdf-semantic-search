@@ -34,7 +34,7 @@ describe("POST /api/upload", () => {
     const res = await POST(makeRequest(new FormData()));
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toMatch(/Aucun fichier/);
+    expect(json.error).toMatch(/No file/);
   });
 
   it("400 when file is not a PDF", async () => {
@@ -43,7 +43,7 @@ describe("POST /api/upload", () => {
     const res = await POST(makeRequest(form));
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toMatch(/doit être un PDF/);
+    expect(json.error).toMatch(/must be a PDF/);
   });
 
   it("400 when file exceeds 30 MB", async () => {
@@ -52,7 +52,7 @@ describe("POST /api/upload", () => {
     const res = await POST(makeRequest(form));
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toMatch(/trop volumineux/);
+    expect(json.error).toMatch(/too large/);
     expect(extractPdfPagesMock).not.toHaveBeenCalled();
   });
 
@@ -66,10 +66,10 @@ describe("POST /api/upload", () => {
     const res = await POST(makeRequest(form));
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toMatch(/trop long/);
+    expect(json.error).toMatch(/too long/);
   });
 
-  it("200 retourne pages et métadonnées en cas de succès", async () => {
+  it("200 returns pages and metadata on success", async () => {
     extractPdfPagesMock.mockResolvedValue({
       pages: ["page un", "page deux"],
       pageCount: 2,
@@ -93,6 +93,6 @@ describe("POST /api/upload", () => {
     const res = await POST(makeRequest(form));
     expect(res.status).toBe(500);
     const json = await res.json();
-    expect(json.error).toMatch(/Erreur lors du traitement/);
+    expect(json.error).toMatch(/Error processing/);
   });
 });

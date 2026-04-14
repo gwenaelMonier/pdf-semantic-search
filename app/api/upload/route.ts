@@ -13,13 +13,13 @@ export async function POST(req: NextRequest) {
     const file = form.get("file");
 
     if (!(file instanceof File)) {
-      return NextResponse.json({ error: "Aucun fichier fourni." }, { status: 400 });
+      return NextResponse.json({ error: "No file provided." }, { status: 400 });
     }
     if (file.type !== "application/pdf") {
-      return NextResponse.json({ error: "Le fichier doit être un PDF." }, { status: 400 });
+      return NextResponse.json({ error: "File must be a PDF." }, { status: 400 });
     }
     if (file.size > MAX_BYTES) {
-      return NextResponse.json({ error: "PDF trop volumineux (max 30 Mo)." }, { status: 400 });
+      return NextResponse.json({ error: "File too large (max 30 MB)." }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     if (pageCount > MAX_PAGES) {
       return NextResponse.json(
-        { error: `PDF trop long (${pageCount} pages, max ${MAX_PAGES}).` },
+        { error: `PDF too long (${pageCount} pages, max ${MAX_PAGES}).` },
         { status: 400 },
       );
     }
@@ -39,6 +39,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("upload error", err);
-    return NextResponse.json({ error: "Erreur lors du traitement du PDF." }, { status: 500 });
+    return NextResponse.json({ error: "Error processing PDF." }, { status: 500 });
   }
 }

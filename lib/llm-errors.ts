@@ -42,12 +42,12 @@ export function normalizeLlmError(err: unknown): LlmError {
   const raw = err as RawSdkError;
   const status = raw?.status;
   if (status === 429) {
-    return new LlmQuotaError(raw.message ?? "Quota épuisé", parseRetryAfter(raw.message), {
+    return new LlmQuotaError(raw.message ?? "Quota exhausted", parseRetryAfter(raw.message), {
       cause: err,
     });
   }
   if (typeof status === "number" && status >= 500 && status < 600) {
-    return new LlmTransientError(raw.message ?? "Erreur transitoire", { cause: err });
+    return new LlmTransientError(raw.message ?? "Transient error", { cause: err });
   }
-  return new LlmError(raw?.message ?? "Erreur LLM inconnue", { cause: err });
+  return new LlmError(raw?.message ?? "Unknown LLM error", { cause: err });
 }

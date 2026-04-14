@@ -3,14 +3,14 @@ import { z } from "zod";
 const EnvSchema = z.object({
   GEMINI_API_KEYS: z
     .string()
-    .min(1, "GEMINI_API_KEYS manquante dans .env.local")
+    .min(1, "GEMINI_API_KEYS missing from .env.local")
     .transform((s) =>
       s
         .split(",")
         .map((k) => k.trim())
         .filter(Boolean),
     )
-    .refine((arr) => arr.length >= 1, "GEMINI_API_KEYS doit contenir au moins une clé"),
+    .refine((arr) => arr.length >= 1, "GEMINI_API_KEYS must contain at least one key"),
   GEMINI_MODEL: z.string().min(1).optional(),
 });
 
@@ -26,7 +26,7 @@ export function getEnv(): Env {
   });
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `- ${i.path.join(".")}: ${i.message}`).join("\n");
-    throw new Error(`Environnement invalide:\n${issues}`);
+    throw new Error(`Invalid environment:\n${issues}`);
   }
   cached = parsed.data;
   return cached;

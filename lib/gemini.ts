@@ -78,7 +78,7 @@ export function createGeminiClient(): LlmClient {
       }
 
       console.error("[gemini] all keys × all models exhausted");
-      throw new LlmQuotaError("Toutes les clés Gemini sont à court de quota", null);
+      throw new LlmQuotaError("All Gemini API keys have exhausted their quota", null);
     },
   };
 }

@@ -34,20 +34,20 @@ beforeEach(() => {
 });
 
 describe("POST /api/chat", () => {
-  it("400 si le body manque des champs requis", async () => {
+  it("400 when required fields are missing", async () => {
     const res = await POST(makeRequest({ pages: PAGES }));
     expect(res.status).toBe(400);
     const json = await res.json();
-    expect(json.error).toBe("Paramètres invalides.");
+    expect(json.error).toBe("Invalid parameters.");
     expect(Array.isArray(json.issues)).toBe(true);
   });
 
-  it("400 si la question dépasse la longueur max", async () => {
+  it("400 when question exceeds max length", async () => {
     const res = await POST(makeRequest({ pages: PAGES, question: "x".repeat(5000) }));
     expect(res.status).toBe(400);
   });
 
-  it("400 si l'historique dépasse le nombre max de tours", async () => {
+  it("400 when history exceeds max turns", async () => {
     const history = Array.from({ length: 25 }, () => ({ role: "user", content: "hi" }));
     const res = await POST(makeRequest({ pages: PAGES, question: "q", history }));
     expect(res.status).toBe(400);
@@ -58,7 +58,7 @@ describe("POST /api/chat", () => {
     expect(res.status).toBe(400);
   });
 
-  it("mode complet par défaut : envoie toutes les pages avec leurs index", async () => {
+  it("default full mode: sends all pages with their indices", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: fromChunks(["Hello", ", ", "world"]),
@@ -80,7 +80,7 @@ describe("POST /api/chat", () => {
     });
   });
 
-  it("recherche ciblée : BM25 sélectionne les pages pertinentes et préserve les index", async () => {
+  it("token saving: BM25 selects relevant pages and preserves indices", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: fromChunks(["ok"]),
@@ -101,12 +101,12 @@ describe("POST /api/chat", () => {
     await res.text();
 
     const call = streamAnswerMock.mock.calls[0]?.[0];
-    // La page 1 contient les deux termes rares de la question, donc en tête.
+    // Page 1 contains both rare query terms, so it ranks first.
     expect(call.pages[0]).toEqual({ index: 1, text: "préavis de démission pour les cadres" });
     expect(call.pages.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("recherche ciblée : fallback mode complet si aucun match BM25", async () => {
+  it("token saving: falls back to full mode when BM25 has no match", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: fromChunks(["ok"]),
@@ -125,7 +125,7 @@ describe("POST /api/chat", () => {
     expect(call.pages).toHaveLength(2);
   });
 
-  it("passe un historique valide au llm", async () => {
+  it("passes a valid history to the llm", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: fromChunks(["ok"]),
@@ -140,7 +140,7 @@ describe("POST /api/chat", () => {
     expect(streamAnswerMock).toHaveBeenCalledWith(expect.objectContaining({ history }));
   });
 
-  it("ajoute un message quota formaté quand LlmQuotaError survient en cours de stream", async () => {
+  it("appends a formatted quota message when LlmQuotaError occurs during stream", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: (async function* () {
@@ -152,18 +152,18 @@ describe("POST /api/chat", () => {
     const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     const body = await res.text();
     expect(body).toContain("partial");
-    expect(body).toContain("Quota Gemini épuisé");
+    expect(body).toContain("Gemini quota exhausted");
     expect(body).toContain("43s");
   });
 
-  it("stream un message quota si tous les modèles sont épuisés avant le premier chunk", async () => {
+  it("streams a quota message when all models are exhausted before the first chunk", async () => {
     streamAnswerMock.mockRejectedValue(new LlmQuotaError("all exhausted", null));
     const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     const body = await res.text();
-    expect(body).toContain("Quota Gemini épuisé");
+    expect(body).toContain("Gemini quota exhausted");
   });
 
-  it("ajoute un message transitoire si LlmTransientError", async () => {
+  it("appends a transient message on LlmTransientError", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: {
@@ -177,10 +177,10 @@ describe("POST /api/chat", () => {
 
     const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     const body = await res.text();
-    expect(body).toContain("Erreur transitoire");
+    expect(body).toContain("Transient Gemini error");
   });
 
-  it("ajoute un message d'erreur générique sur échec non-429", async () => {
+  it("appends a generic error message on non-429 failure", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: {
@@ -194,7 +194,7 @@ describe("POST /api/chat", () => {
 
     const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     const body = await res.text();
-    expect(body).toContain("Erreur lors de la génération");
+    expect(body).toContain("Error generating");
   });
 
   it("500 si le body n'est pas du JSON valide", async () => {

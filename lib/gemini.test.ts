@@ -3,7 +3,7 @@ import { LlmQuotaError, LlmTransientError } from "@/lib/llm-errors";
 
 const { chatsCreateMock, GoogleGenAIMock, envMock } = vi.hoisted(() => {
   const chatsCreateMock = vi.fn();
-  // biome-ignore lint/complexity/useArrowFunction: appelé avec `new`, doit être une fonction constructible
+  // biome-ignore lint/complexity/useArrowFunction: called with `new`, must be a constructible function
   const GoogleGenAIMock = vi.fn(function () {
     return { chats: { create: chatsCreateMock } };
   });
@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 
 describe("createGeminiClient — model rotation", () => {
-  it("utilise le premier modèle de ROTATION_MODELS par défaut et retourne les chunks", async () => {
+  it("uses the first ROTATION_MODELS model by default and returns chunks", async () => {
     chatsCreateMock.mockReturnValue(makeChat(["hello"]));
     const client = createGeminiClient();
     const { model, chunks } = await client.streamAnswer(OPTS);
@@ -62,7 +62,7 @@ describe("createGeminiClient — model rotation", () => {
     expect(chatsCreateMock).toHaveBeenCalledTimes(1);
   });
 
-  it("bascule sur le modèle suivant quand le premier renvoie 429", async () => {
+  it("falls back to the next model when the first returns 429", async () => {
     chatsCreateMock
       .mockReturnValueOnce(makeChat([], new LlmQuotaError("quota", null)))
       .mockReturnValue(makeChat(["ok"]));
@@ -75,14 +75,14 @@ describe("createGeminiClient — model rotation", () => {
     expect(chatsCreateMock).toHaveBeenCalledTimes(2);
   });
 
-  it("lève LlmQuotaError quand tous les modèles de l'unique clé sont épuisés", async () => {
+  it("throws LlmQuotaError when all models of the single key are exhausted", async () => {
     chatsCreateMock.mockReturnValue(makeChat([], new LlmQuotaError("quota", null)));
     const client = createGeminiClient();
     await expect(client.streamAnswer(OPTS)).rejects.toBeInstanceOf(LlmQuotaError);
     expect(chatsCreateMock).toHaveBeenCalledTimes(MODEL_COUNT);
   });
 
-  it("ne réessaie pas quand un 429 arrive en cours de streaming", async () => {
+  it("does not retry when a 429 occurs during streaming", async () => {
     chatsCreateMock.mockReturnValue({
       sendMessageStream: async () => {
         return (async function* () {
@@ -101,7 +101,7 @@ describe("createGeminiClient — model rotation", () => {
     expect(chatsCreateMock).toHaveBeenCalledTimes(1);
   });
 
-  it("ne réessaie pas sur une erreur non-quota", async () => {
+  it("does not retry on a non-quota error", async () => {
     chatsCreateMock.mockReturnValue(makeChat([], new LlmTransientError("503")));
     const client = createGeminiClient();
     await expect(client.streamAnswer(OPTS)).rejects.toBeInstanceOf(LlmTransientError);
@@ -110,9 +110,9 @@ describe("createGeminiClient — model rotation", () => {
 });
 
 describe("createGeminiClient — rotation multi-clés", () => {
-  it("bascule sur la 2e clé quand tous les modèles de la 1ère sont en 429", async () => {
+  it("falls back to the 2nd key when all models of the 1st are 429", async () => {
     envMock.mockReturnValue({ GEMINI_API_KEYS: ["k1", "k2"], GEMINI_MODEL: undefined });
-    // Premier set (clé 1) : tous les modèles en 429. Puis clé 2 : succès immédiat.
+    // First set (key 1): all models 429. Then key 2: immediate success.
     for (let i = 0; i < MODEL_COUNT; i++) {
       chatsCreateMock.mockReturnValueOnce(makeChat([], new LlmQuotaError("quota k1", null)));
     }
@@ -124,15 +124,15 @@ describe("createGeminiClient — rotation multi-clés", () => {
     for await (const c of chunks) result.push(c);
     expect(result).toEqual(["ok"]);
     expect(model).toBe(ROTATION_MODELS[0]);
-    // MODEL_COUNT échecs sur k1 + 1 succès sur k2
+    // MODEL_COUNT failures on k1 + 1 success on k2
     expect(chatsCreateMock).toHaveBeenCalledTimes(MODEL_COUNT + 1);
-    // GoogleGenAI instancié 2 fois (1 par clé)
+    // GoogleGenAI instantiated twice (once per key)
     expect(GoogleGenAIMock).toHaveBeenCalledTimes(2);
     expect(GoogleGenAIMock).toHaveBeenNthCalledWith(1, { apiKey: "k1" });
     expect(GoogleGenAIMock).toHaveBeenNthCalledWith(2, { apiKey: "k2" });
   });
 
-  it("lève LlmQuotaError quand toutes les clés × tous les modèles sont épuisés", async () => {
+  it("throws LlmQuotaError when all keys × all models are exhausted", async () => {
     envMock.mockReturnValue({ GEMINI_API_KEYS: ["k1", "k2"], GEMINI_MODEL: undefined });
     chatsCreateMock.mockReturnValue(makeChat([], new LlmQuotaError("quota", null)));
 

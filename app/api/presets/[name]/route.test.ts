@@ -46,6 +46,6 @@ describe("GET /api/presets/[name]", () => {
     const res = await call("missing.pdf");
     expect(res.status).toBe(404);
     const json = await res.json();
-    expect(json.error).toMatch(/introuvable/);
+    expect(json.error).toMatch(/not found/);
   });
 });

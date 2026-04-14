@@ -27,17 +27,17 @@ const ChatRequestSchema = z.object({
 function formatStreamError(err: unknown): string {
   const e = normalizeLlmError(err);
   if (e instanceof LlmQuotaError) {
-    const retry = e.retryAfterSeconds ? ` Réessayez dans environ ${e.retryAfterSeconds}s.` : "";
+    const retry = e.retryAfterSeconds ? ` Retry in approximately ${e.retryAfterSeconds}s.` : "";
     return (
-      "\n\n> ⚠️ **Quota Gemini épuisé** (palier gratuit).\n> " +
-      "Tous les modèles disponibles ont atteint leur limite quotidienne." +
+      "\n\n> ⚠️ **Gemini quota exhausted** (free tier).\n> " +
+      "All available models have reached their daily limit." +
       retry
     );
   }
   if (e instanceof LlmTransientError) {
-    return "\n\n[Erreur transitoire côté Gemini. Réessayez dans quelques instants.]";
+    return "\n\n[Transient Gemini error. Please try again in a moment.]";
   }
-  return "\n\n[Erreur lors de la génération de la réponse.]";
+  return "\n\n[Error generating the response.]";
 }
 
 export async function POST(req: NextRequest) {
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       console.warn("zod issues", parsed.error.issues);
       return NextResponse.json(
-        { error: "Paramètres invalides.", issues: parsed.error.issues },
+        { error: "Invalid parameters.", issues: parsed.error.issues },
         { status: 400 },
       );
     }
@@ -59,16 +59,16 @@ export async function POST(req: NextRequest) {
       const topIndices = topKPages(index, body.question, RAG_TOP_K);
       if (topIndices.length === 0) {
         contextPages = body.pages.map((text, i) => ({ index: i, text }));
-        console.log(`[chat] recherche ciblée : aucun match BM25, fallback mode complet`);
+        console.log(`[chat] token saving: no BM25 match, falling back to full mode`);
       } else {
         contextPages = topIndices.map((i) => ({ index: i, text: body.pages[i] }));
         console.log(
-          `[chat] recherche ciblée : ${contextPages.length}/${body.pages.length} pages (p. ${topIndices.map((i) => i + 1).join(", ")})`,
+          `[chat] token saving: ${contextPages.length}/${body.pages.length} pages (p. ${topIndices.map((i) => i + 1).join(", ")})`,
         );
       }
     } else {
       contextPages = body.pages.map((text, index) => ({ index, text }));
-      console.log(`[chat] mode complet : ${contextPages.length} pages envoyées`);
+      console.log(`[chat] full mode: ${contextPages.length} pages sent`);
     }
 
     const llm = getLlmClient();
@@ -120,6 +120,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("chat error", err);
-    return NextResponse.json({ error: "Erreur serveur." }, { status: 500 });
+    return NextResponse.json({ error: "Server error." }, { status: 500 });
   }
 }

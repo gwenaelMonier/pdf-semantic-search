@@ -39,7 +39,7 @@ export function useChatStream(pages: string[], ragEnabled: boolean): UseChatStre
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Erreur de requête");
+        throw new Error(data.error || "Request error");
       }
 
       const modelUsed = res.headers.get("X-Gemini-Model") ?? undefined;
@@ -62,7 +62,7 @@ export function useChatStream(pages: string[], ragEnabled: boolean): UseChatStre
         const copy = [...curr];
         copy[copy.length - 1] = {
           role: "assistant",
-          content: `Erreur : ${err instanceof Error ? err.message : "inconnue"}`,
+          content: `Error: ${err instanceof Error ? err.message : "unknown"}`,
         };
         return copy;
       });

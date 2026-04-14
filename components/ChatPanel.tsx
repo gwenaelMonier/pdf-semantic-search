@@ -49,7 +49,7 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
             }`}
             title="Sélectionne les pages pertinentes par mots-clés (BM25). Plus rapide mais moins bon sur les questions globales type « résume ce document »."
           >
-            <span className="font-medium text-zinc-700">Recherche ciblée</span>
+            <span className="font-medium text-zinc-700">Économie de tokens</span>
             <button
               type="button"
               role="switch"

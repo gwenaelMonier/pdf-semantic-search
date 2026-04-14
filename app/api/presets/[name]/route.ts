@@ -12,12 +12,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ name: s
   const name = decodeURIComponent(rawName);
 
   if (!SAFE_NAME.test(name) || name.includes("..")) {
-    return NextResponse.json({ error: "Nom invalide." }, { status: 404 });
+    return NextResponse.json({ error: "Invalid name." }, { status: 404 });
   }
 
   const target = path.resolve(PRESETS_DIR, name);
   if (!target.startsWith(PRESETS_DIR + path.sep)) {
-    return NextResponse.json({ error: "Chemin invalide." }, { status: 404 });
+    return NextResponse.json({ error: "Invalid path." }, { status: 404 });
   }
 
   try {
@@ -30,6 +30,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ name: s
       },
     });
   } catch {
-    return NextResponse.json({ error: "Fichier introuvable." }, { status: 404 });
+    return NextResponse.json({ error: "File not found." }, { status: 404 });
   }
 }
