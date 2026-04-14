@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { embedQuery, topKPages } from "@/lib/embeddings";
+import { buildIndex, topKPages } from "@/lib/bm25";
 import { getLlmClient } from "@/lib/llm";
 import { LlmQuotaError, LlmTransientError, normalizeLlmError } from "@/lib/llm-errors";
 
@@ -19,7 +19,7 @@ const ChatTurnSchema = z.object({
 
 const ChatRequestSchema = z.object({
   pages: z.array(z.string()).min(1).max(500),
-  embeddings: z.array(z.array(z.number())).optional(),
+  ragEnabled: z.boolean().optional().default(false),
   question: z.string().min(1).max(MAX_QUESTION_CHARS),
   history: z.array(ChatTurnSchema).max(MAX_HISTORY_TURNS).optional().default([]),
 });
@@ -54,13 +54,18 @@ export async function POST(req: NextRequest) {
     const body = parsed.data;
 
     let contextPages: { index: number; text: string }[];
-    if (body.embeddings && body.embeddings.length === body.pages.length) {
-      const queryEmbedding = await embedQuery(body.question);
-      const topIndices = topKPages(body.embeddings, queryEmbedding, RAG_TOP_K);
-      contextPages = topIndices.map((i) => ({ index: i, text: body.pages[i] }));
-      console.log(
-        `[chat] mode rapide : ${contextPages.length}/${body.pages.length} pages sélectionnées (p. ${topIndices.map((i) => i + 1).join(", ")})`,
-      );
+    if (body.ragEnabled) {
+      const index = buildIndex(body.pages);
+      const topIndices = topKPages(index, body.question, RAG_TOP_K);
+      if (topIndices.length === 0) {
+        contextPages = body.pages.map((text, i) => ({ index: i, text }));
+        console.log(`[chat] recherche ciblée : aucun match BM25, fallback mode complet`);
+      } else {
+        contextPages = topIndices.map((i) => ({ index: i, text: body.pages[i] }));
+        console.log(
+          `[chat] recherche ciblée : ${contextPages.length}/${body.pages.length} pages (p. ${topIndices.map((i) => i + 1).join(", ")})`,
+        );
+      }
     } else {
       contextPages = body.pages.map((text, index) => ({ index, text }));
       console.log(`[chat] mode complet : ${contextPages.length} pages envoyées`);

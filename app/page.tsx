@@ -23,7 +23,6 @@ export default function Home() {
     <div className="grid h-screen grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
       <ChatPanel
         pages={session.pages}
-        embeddings={session.embeddings}
         filename={session.filename}
         pageCount={session.pageCount}
         onPageClick={(t) => setTarget((prev) => ({ ...t, nonce: prev.nonce + 1 }))}

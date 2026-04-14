@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export type UploadResult = {
   pages: string[];
-  embeddings: number[][] | null;
   filename: string;
   pageCount: number;
   file: File;
@@ -53,7 +52,6 @@ export function PdfUploader({ onUploaded }: Props) {
         if (!res.ok) throw new Error(data.error || "Erreur upload");
         onUploaded({
           pages: data.pages,
-          embeddings: data.embeddings ?? null,
           filename: data.filename,
           pageCount: data.pageCount,
           file,

@@ -31,7 +31,8 @@ No vector store, no RAG: the full document is sent to the model on every request
 npm install
 cp .env.local.example .env.local
 # then edit .env.local and paste your key:
-# GEMINI_API_KEY=your_key_here
+# GEMINI_API_KEYS=your_key_here
+# (ou `key1,key2` pour rotation multi-clés en free tier)
 ```
 
 ## Running
@@ -46,7 +47,7 @@ Open [http://localhost:3000](http://localhost:3000), drop a collective agreement
 
 | Variable | Required | Description |
 |---|---|---|
-| `GEMINI_API_KEY` | yes | Google AI Studio API key |
+| `GEMINI_API_KEYS` | yes | Google AI Studio API key (liste séparée par virgules pour rotation automatique en cas de quota épuisé) |
 | `GEMINI_MODEL` | no | Gemini model to use (default: `gemini-2.5-flash`) |
 
 ## Project structure

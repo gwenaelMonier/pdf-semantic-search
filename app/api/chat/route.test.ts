@@ -2,34 +2,17 @@ import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LlmQuotaError, LlmTransientError } from "@/lib/llm-errors";
 
-const { streamAnswerMock, embedQueryMock } = vi.hoisted(() => ({
+const { streamAnswerMock } = vi.hoisted(() => ({
   streamAnswerMock: vi.fn(),
-  embedQueryMock: vi.fn(),
 }));
 
 vi.mock("@/lib/llm", () => ({
   getLlmClient: () => ({ streamAnswer: streamAnswerMock }),
 }));
 
-vi.mock("@/lib/embeddings", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/embeddings")>("@/lib/embeddings");
-  return {
-    ...actual,
-    embedQuery: embedQueryMock,
-  };
-});
-
 import { POST } from "@/app/api/chat/route";
 
 const PAGES = ["page 1", "page 2"];
-// 3 pages pour RAG, vecteurs 2D simples ; la question [1,0] cible la page 1.
-const RAG_PAGES = ["page A", "page B", "page C"];
-const RAG_EMBEDDINGS = [
-  [0.1, 0.9], // page 0 : faible score
-  [1, 0], // page 1 : score max
-  [0.5, 0.5], // page 2 : score moyen
-];
-const RAG_QUERY_EMBEDDING = [1, 0];
 
 function makeRequest(body: unknown): NextRequest {
   return new Request("http://localhost/api/chat", {
@@ -45,7 +28,6 @@ async function* fromChunks(chunks: string[]): AsyncIterable<string> {
 
 beforeEach(() => {
   streamAnswerMock.mockReset();
-  embedQueryMock.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -76,7 +58,7 @@ describe("POST /api/chat", () => {
     expect(res.status).toBe(400);
   });
 
-  it("mode complet : envoie toutes les pages avec leurs index quand embeddings absent", async () => {
+  it("mode complet par défaut : envoie toutes les pages avec leurs index", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: fromChunks(["Hello", ", ", "world"]),
@@ -88,7 +70,6 @@ describe("POST /api/chat", () => {
     const body = await res.text();
     expect(body).toBe("Hello, world");
 
-    expect(embedQueryMock).not.toHaveBeenCalled();
     expect(streamAnswerMock).toHaveBeenCalledWith({
       pages: [
         { index: 0, text: "page 1" },
@@ -99,50 +80,47 @@ describe("POST /api/chat", () => {
     });
   });
 
-  it("mode rapide : embed la question, sélectionne top-K et préserve les index", async () => {
-    embedQueryMock.mockResolvedValue(RAG_QUERY_EMBEDDING);
+  it("recherche ciblée : BM25 sélectionne les pages pertinentes et préserve les index", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: fromChunks(["ok"]),
     });
 
+    const ragPages = [
+      "article général sur le travail",
+      "préavis de démission pour les cadres",
+      "congés payés",
+    ];
     const res = await POST(
       makeRequest({
-        pages: RAG_PAGES,
-        embeddings: RAG_EMBEDDINGS,
-        question: "q",
+        pages: ragPages,
+        ragEnabled: true,
+        question: "préavis cadre",
       }),
     );
     await res.text();
 
-    expect(embedQueryMock).toHaveBeenCalledWith("q");
-    // Top-K = 5 mais seulement 3 pages → toutes retournées, triées par pertinence.
-    // Ordre attendu : page 1 (score max), page 2, page 0.
     const call = streamAnswerMock.mock.calls[0]?.[0];
-    expect(call.pages).toEqual([
-      { index: 1, text: "page B" },
-      { index: 2, text: "page C" },
-      { index: 0, text: "page A" },
-    ]);
+    // La page 1 contient les deux termes rares de la question, donc en tête.
+    expect(call.pages[0]).toEqual({ index: 1, text: "préavis de démission pour les cadres" });
+    expect(call.pages.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("mode complet si embeddings.length ne matche pas pages.length (incohérence)", async () => {
+  it("recherche ciblée : fallback mode complet si aucun match BM25", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: fromChunks(["ok"]),
     });
 
-    // 2 pages mais 3 embeddings → fallback mode complet.
     const res = await POST(
       makeRequest({
         pages: PAGES,
-        embeddings: RAG_EMBEDDINGS,
-        question: "q",
+        ragEnabled: true,
+        question: "xyz123",
       }),
     );
     await res.text();
 
-    expect(embedQueryMock).not.toHaveBeenCalled();
     const call = streamAnswerMock.mock.calls[0]?.[0];
     expect(call.pages).toHaveLength(2);
   });

@@ -14,11 +14,7 @@ export type UseChatStreamResult = {
   send: (question: string) => Promise<void>;
 };
 
-export function useChatStream(
-  pages: string[],
-  embeddings: number[][] | null,
-  ragEnabled: boolean,
-): UseChatStreamResult {
+export function useChatStream(pages: string[], ragEnabled: boolean): UseChatStreamResult {
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState(false);
 
@@ -35,15 +31,10 @@ export function useChatStream(
     setStreaming(true);
 
     try {
-      const useRag = ragEnabled && embeddings !== null;
-      const body = useRag
-        ? { pages, embeddings, question: trimmed, history }
-        : { pages, question: trimmed, history };
-
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ pages, ragEnabled, question: trimmed, history }),
       });
 
       if (!res.ok || !res.body) {

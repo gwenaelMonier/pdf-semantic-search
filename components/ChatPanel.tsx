@@ -10,16 +10,15 @@ export type { CitationTarget };
 
 type Props = {
   pages: string[];
-  embeddings: number[][] | null;
   filename: string;
   pageCount: number;
   onPageClick: (target: CitationTarget) => void;
   onReset: () => void;
 };
 
-export function ChatPanel({ pages, embeddings, filename, pageCount, onPageClick, onReset }: Props) {
+export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: Props) {
   const [ragEnabled, setRagEnabled] = useState(true);
-  const { messages, streaming, send } = useChatStream(pages, embeddings, ragEnabled);
+  const { messages, streaming, send } = useChatStream(pages, ragEnabled);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -36,10 +35,6 @@ export function ChatPanel({ pages, embeddings, filename, pageCount, onPageClick,
     await send(question);
   }
 
-  const ragAvailable = embeddings !== null;
-  const ragActive = ragAvailable && ragEnabled;
-  const toggleDisabled = streaming || !ragAvailable;
-
   return (
     <div className="flex h-full min-h-0 flex-col bg-white">
       <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-4">
@@ -50,28 +45,24 @@ export function ChatPanel({ pages, embeddings, filename, pageCount, onPageClick,
         <div className="flex shrink-0 items-center gap-3">
           <label
             className={`flex items-center gap-2 text-xs ${
-              toggleDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+              streaming ? "cursor-not-allowed opacity-50" : "cursor-pointer"
             }`}
-            title={
-              !ragAvailable
-                ? "Mode rapide indisponible (embeddings non calculés)"
-                : "Ne consulte que les pages pertinentes. Plus rapide mais moins bon sur les questions globales."
-            }
+            title="Sélectionne les pages pertinentes par mots-clés (BM25). Plus rapide mais moins bon sur les questions globales type « résume ce document »."
           >
-            <span className="font-medium text-zinc-700">Mode rapide</span>
+            <span className="font-medium text-zinc-700">Recherche ciblée</span>
             <button
               type="button"
               role="switch"
-              aria-checked={ragActive}
-              disabled={toggleDisabled}
+              aria-checked={ragEnabled}
+              disabled={streaming}
               onClick={() => setRagEnabled((v) => !v)}
               className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition disabled:cursor-not-allowed ${
-                ragActive ? "bg-blue-600" : "bg-zinc-300"
+                ragEnabled ? "bg-blue-600" : "bg-zinc-300"
               }`}
             >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
-                  ragActive ? "translate-x-4" : "translate-x-0.5"
+                  ragEnabled ? "translate-x-4" : "translate-x-0.5"
                 }`}
               />
             </button>
