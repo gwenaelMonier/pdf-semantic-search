@@ -47,9 +47,28 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
             className={`flex items-center gap-2 text-xs ${
               streaming ? "cursor-not-allowed opacity-50" : "cursor-pointer"
             }`}
-            title="Sélectionne les pages pertinentes par mots-clés (BM25). Plus rapide mais moins bon sur les questions globales type « résume ce document »."
           >
-            <span className="font-medium text-zinc-700">Économie de tokens</span>
+            <span className="flex items-center gap-1 font-medium text-zinc-700">
+              Économie de tokens
+              <span className="group relative flex items-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-600"
+                  aria-hidden="true"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <span className="pointer-events-none absolute top-full left-1/2 z-10 mt-1.5 w-56 -translate-x-1/2 rounded-md bg-zinc-800 px-2.5 py-1.5 text-xs font-normal leading-snug text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+                  Sélectionne les pages pertinentes par mots-clés (BM25). Plus rapide mais moins bon sur les questions globales type « résume ce document ».
+                </span>
+              </span>
+            </span>
             <button
               type="button"
               role="switch"
