@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "HR Assistant",
-  description: "Posez vos questions RH sur une convention collective.",
+  title: "PDF Semantic Search",
+  description: "Posez vos questions sur un document PDF.",
 };
 
 export default function RootLayout({

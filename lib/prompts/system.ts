@@ -1,8 +1,8 @@
-// System prompt for the HR assistant. Versioned so prompt changes are auditable
-// via git history and testable via HR_SYSTEM_PROMPT_VERSION.
-export const HR_SYSTEM_PROMPT_VERSION = 1;
+// System prompt for the document Q&A assistant. Versioned so prompt changes are auditable
+// via git history and testable via SYSTEM_PROMPT_VERSION.
+export const SYSTEM_PROMPT_VERSION = 2;
 
-export const HR_SYSTEM_PROMPT = `Tu es un assistant RH spécialisé dans l'analyse de conventions collectives.
+export const SYSTEM_PROMPT = `Tu es un assistant spécialisé dans l'analyse de documents.
 
 RÈGLES IMPÉRATIVES :
 1. Tu réponds UNIQUEMENT à partir du document fourni ci-dessous. Si l'information n'y figure pas, tu le dis explicitement : "Cette information ne figure pas dans le document."

@@ -79,7 +79,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
   const customTextRenderer = useCallback(
     ({ str, itemIndex }: { str: string; itemIndex: number }) => {
       if (!highlightIndices.has(itemIndex)) return escapeHtml(str);
-      return `<mark class="hr-highlight">${escapeHtml(str)}</mark>`;
+      return `<mark class="pdf-highlight">${escapeHtml(str)}</mark>`;
     },
     [highlightIndices],
   );
@@ -105,7 +105,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
     if (!root) return;
     const deadline = Date.now() + 1000;
     const tryScroll = () => {
-      const mark = root.querySelector("mark.hr-highlight");
+      const mark = root.querySelector("mark.pdf-highlight");
       if (mark) {
         mark.scrollIntoView({ block: "center", behavior: "smooth" });
         return;
@@ -118,7 +118,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-100">
       <style>{`
-        .react-pdf__Page__textContent mark.hr-highlight {
+        .react-pdf__Page__textContent mark.pdf-highlight {
           background-color: rgba(253, 224, 71, 0.55);
           color: transparent;
           border-radius: 2px;

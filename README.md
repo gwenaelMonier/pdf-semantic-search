@@ -1,6 +1,6 @@
-# HR Assistant
+# PDF Semantic Search
 
-AI-powered chatbot that answers HR questions about a **collective agreement** (convention collective) you upload as a PDF. For every answer, the model cites the source pages and clicking a citation jumps to the page and **highlights the exact quoted passage** in the PDF viewer.
+AI-powered chatbot that answers questions about any **PDF you upload**. For every answer, the model cites the source pages and clicking a citation jumps to the page and **highlights the exact quoted passage** in the PDF viewer.
 
 ## Features
 
@@ -9,6 +9,7 @@ AI-powered chatbot that answers HR questions about a **collective agreement** (c
 - Sourced citations in the format `[p. X: "verbatim excerpt"]`
 - Click a citation → jump to the page, highlight the passage, auto-scroll to it
 - Split view: chat on the left, PDF viewer on the right
+- Token-saving mode: BM25 keyword search selects only relevant pages before sending to the model
 - Zero hallucination: the model explicitly says when the info is not in the document
 
 ## Stack
@@ -17,8 +18,6 @@ AI-powered chatbot that answers HR questions about a **collective agreement** (c
 - **Google Gemini 2.5 Flash** via `@google/generative-ai`
 - **unpdf** for server-side PDF text extraction
 - **react-pdf** / **pdf.js** for client-side rendering and highlighting
-
-No vector store, no RAG: the full document is sent to the model on every request. Gemini's 1M token context window is more than enough for a typical collective agreement.
 
 ## Prerequisites
 
@@ -32,7 +31,7 @@ npm install
 cp .env.local.example .env.local
 # then edit .env.local and paste your key:
 # GEMINI_API_KEYS=your_key_here
-# (ou `key1,key2` pour rotation multi-clés en free tier)
+# (comma-separated for multi-key rotation on free tier: key1,key2)
 ```
 
 ## Running
@@ -41,13 +40,13 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), drop a collective agreement PDF, and start asking questions.
+Open [http://localhost:3000](http://localhost:3000), drop a PDF, and start asking questions.
 
 ## Environment variables
 
 | Variable | Required | Description |
 |---|---|---|
-| `GEMINI_API_KEYS` | yes | Google AI Studio API key (liste séparée par virgules pour rotation automatique en cas de quota épuisé) |
+| `GEMINI_API_KEYS` | yes | Google AI Studio API key (comma-separated list for automatic rotation on quota exhaustion) |
 | `GEMINI_MODEL` | no | Gemini model to use (default: `gemini-2.5-flash`) |
 
 ## Project structure
@@ -57,15 +56,21 @@ app/
   api/
     upload/route.ts     # POST PDF → extract text → create session
     chat/route.ts       # POST question → stream Gemini response
+    presets/            # serve pre-loaded PDFs
   page.tsx              # orchestration: uploader / chat / viewer
   layout.tsx
 components/
   PdfUploader.tsx       # drag & drop uploader
   ChatPanel.tsx         # chat UI + citation parsing
   PdfViewer.tsx         # react-pdf + n-gram highlighting
+  AssistantMarkdown.tsx # markdown renderer with clickable citations
+hooks/
+  useChatStream.ts      # streaming chat logic
 lib/
   pdf.ts                # per-page text extraction (unpdf)
-  gemini.ts             # Gemini client + system prompt
+  gemini.ts             # Gemini client
+  bm25.ts               # BM25 index for token-saving page selection
+  citations.ts          # citation parsing
   session.ts            # in-memory session store (2h TTL)
 ```
 

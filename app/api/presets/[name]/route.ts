@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-const PRESETS_DIR = path.join(process.cwd(), "collective-agreement");
+const PRESETS_DIR = path.join(process.cwd(), "presets");
 const SAFE_NAME = /^[\w\-. ]+\.pdf$/;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ name: string }> }) {

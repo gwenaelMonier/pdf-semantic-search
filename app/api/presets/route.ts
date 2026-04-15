@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const dir = path.join(process.cwd(), "collective-agreement");
+    const dir = path.join(process.cwd(), "presets");
     const entries = await readdir(dir);
     const pdfs = entries
       .filter((e) => e.toLowerCase().endsWith(".pdf"))

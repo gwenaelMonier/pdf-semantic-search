@@ -12,7 +12,7 @@
       "!1-archive",
       "!.next",
       "!tasks",
-      "!collective-agreement",
+      "!presets",
       "!public",
       "!next-env.d.ts",
       "!**/*.css"

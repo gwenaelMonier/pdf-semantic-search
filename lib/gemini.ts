@@ -2,7 +2,7 @@ import { type Content, GoogleGenAI } from "@google/genai";
 import { getEnv } from "@/lib/env";
 import type { LlmClient, StreamAnswerOptions, StreamResult } from "@/lib/llm";
 import { LlmQuotaError, normalizeLlmError } from "@/lib/llm-errors";
-import { HR_SYSTEM_PROMPT } from "@/lib/prompts/system";
+import { SYSTEM_PROMPT } from "@/lib/prompts/system";
 
 export const ROTATION_MODELS = [
   "gemini-2.5-flash",
@@ -45,7 +45,7 @@ export function createGeminiClient(): LlmClient {
             const chat = ai.chats.create({
               model: modelId,
               history,
-              config: { systemInstruction: HR_SYSTEM_PROMPT },
+              config: { systemInstruction: SYSTEM_PROMPT },
             });
             const stream = await chat.sendMessageStream({ message: userText });
             console.log(`[gemini] ${keyLabel} / selected model: ${modelId}`);

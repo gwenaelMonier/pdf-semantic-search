@@ -71,7 +71,7 @@ export function PdfUploader({ onUploaded }: Props) {
       setLoadingPreset(name);
       try {
         const res = await fetch(`/api/presets/${encodeURIComponent(name)}`);
-        if (!res.ok) throw new Error("Impossible de charger la convention.");
+        if (!res.ok) throw new Error("Impossible de charger le document.");
         const blob = await res.blob();
         const file = new File([blob], name, { type: "application/pdf" });
         await handleFile(file);
@@ -87,9 +87,9 @@ export function PdfUploader({ onUploaded }: Props) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-6">
       <div className="w-full max-w-xl">
-        <h1 className="mb-2 text-center text-3xl font-semibold text-zinc-900">HR Assistant</h1>
+        <h1 className="mb-2 text-center text-3xl font-semibold text-zinc-900">PDF Assistant</h1>
         <p className="mb-8 text-center text-sm text-zinc-500">
-          Importez une convention collective et posez vos questions.
+          Importez un document PDF et posez vos questions.
         </p>
 
         <label
@@ -143,7 +143,7 @@ export function PdfUploader({ onUploaded }: Props) {
           <div className="mt-8">
             <div className="mb-4 flex items-center gap-3 text-xs uppercase tracking-wide text-zinc-400">
               <div className="h-px flex-1 bg-zinc-200" />
-              ou choisir une convention existante
+              ou choisir un document existant
               <div className="h-px flex-1 bg-zinc-200" />
             </div>
             <ul className="space-y-2">

@@ -99,7 +99,7 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="mt-10 text-center text-sm text-zinc-500">
-            Posez une question sur la convention collective.
+            Posez une question sur le document.
           </div>
         )}
         <div className="space-y-4">
@@ -109,7 +109,7 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
               <div className="flex max-w-[90%] flex-col gap-1">
                 {m.role === "assistant" && (
                   <p className="text-xs text-zinc-400">
-                    🤖 Hr assistant{m.model ? ` (powered by ${m.model})` : ""}
+                    🤖 PDF assistant{m.model ? ` (powered by ${m.model})` : ""}
                   </p>
                 )}
                 <div

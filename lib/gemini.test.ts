@@ -19,7 +19,7 @@ vi.mock("@/lib/env", () => ({
   getEnv: () => envMock(),
 }));
 
-vi.mock("@/lib/prompts/system", () => ({ HR_SYSTEM_PROMPT: "system" }));
+vi.mock("@/lib/prompts/system", () => ({ SYSTEM_PROMPT: "system" }));
 
 import { createGeminiClient, ROTATION_MODELS } from "@/lib/gemini";
 
