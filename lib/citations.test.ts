@@ -170,4 +170,43 @@ describe("parseCitations", () => {
     expect(first).toEqual(second);
     expect(first).toHaveLength(2);
   });
+
+  it("parses multi-pair citation: each page has its own quote", () => {
+    const out = parseCitations(
+      '[p. 8: "Salaires minimaux ETAM POSITION 1.1 240", p. 9: "Salaires minimaux ingénieurs POSITION 1.1 95"]',
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].targets).toEqual([
+      { page: 8, quote: "Salaires minimaux ETAM POSITION 1.1 240" },
+      { page: 9, quote: "Salaires minimaux ingénieurs POSITION 1.1 95" },
+    ]);
+  });
+
+  it("parses multi-pair citation with more than two pairs", () => {
+    const out = parseCitations('[p. 1: "premier", p. 2: "deuxième", p. 3: "troisième"]');
+    expect(out).toHaveLength(1);
+    expect(out[0].targets).toEqual([
+      { page: 1, quote: "premier" },
+      { page: 2, quote: "deuxième" },
+      { page: 3, quote: "troisième" },
+    ]);
+  });
+
+  it("parses multi-pair citation embedded in surrounding text", () => {
+    const text =
+      'Voir [p. 8: "grille ETAM", p. 9: "grille cadres"] pour les salaires.';
+    const out = parseCitations(text);
+    expect(out).toHaveLength(1);
+    expect(out[0].targets[0]).toEqual({ page: 8, quote: "grille ETAM" });
+    expect(out[0].targets[1]).toEqual({ page: 9, quote: "grille cadres" });
+  });
+
+  it("does not confuse multi-pair with single-group multi-quote", () => {
+    // [p. 49: "q1", "q2"] → single group, NOT multi-pair
+    const out = parseCitations('[p. 49: "quote A", "quote B"]');
+    expect(out[0].targets).toEqual([
+      { page: 49, quote: "quote A" },
+      { page: 49, quote: "quote B" },
+    ]);
+  });
 });
