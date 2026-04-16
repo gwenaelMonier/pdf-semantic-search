@@ -2,11 +2,28 @@
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { AssistantMarkdown } from "@/components/AssistantMarkdown";
-import { useChatStream } from "@/hooks/useChatStream";
+import { useChatStream, type MessageMeta } from "@/hooks/useChatStream";
 import type { CitationTarget } from "@/lib/citations";
 
 export type { Message } from "@/hooks/useChatStream";
 export type { CitationTarget };
+
+function MessageFooter({ meta }: { meta: MessageMeta }) {
+  const parts: string[] = [];
+  if (meta.durationMs !== undefined) parts.push(`${(meta.durationMs / 1000).toFixed(1)}s`);
+  if (meta.model) parts.push(meta.model);
+  const totalTokens = (meta.promptTokens ?? 0) + (meta.responseTokens ?? 0);
+  if (totalTokens > 0) parts.push(`${totalTokens.toLocaleString("fr-FR")} tokens`);
+  if (meta.pagesSent !== undefined && meta.pagesTotal !== undefined && meta.pagesSent < meta.pagesTotal) {
+    parts.push(`${meta.pagesSent}/${meta.pagesTotal} pages`);
+  }
+  if (parts.length === 0) return null;
+  return (
+    <p className="mt-1.5 text-xs text-zinc-400">
+      {parts.join(" · ")}
+    </p>
+  );
+}
 
 type Props = {
   pages: string[];
@@ -18,7 +35,7 @@ type Props = {
 
 export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: Props) {
   const [ragEnabled, setRagEnabled] = useState(true);
-  const { messages, streaming, send } = useChatStream(pages, ragEnabled);
+  const { messages, streaming, send, resendLast } = useChatStream(pages, ragEnabled);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -106,12 +123,7 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
           {messages.map((m, i) => (
             // biome-ignore lint/suspicious/noArrayIndexKey: chat messages are append-only, index is stable
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className="flex max-w-[90%] flex-col gap-1">
-                {m.role === "assistant" && (
-                  <p className="text-xs text-zinc-400">
-                    🤖 PDF assistant{m.model ? ` (powered by ${m.model})` : ""}
-                  </p>
-                )}
+              <div className="flex max-w-[90%] flex-col">
                 <div
                   className={`rounded-2xl text-sm leading-relaxed ${
                     m.role === "user"
@@ -131,6 +143,23 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
                     m.content
                   )}
                 </div>
+                {m.role === "assistant" && m.meta && !(streaming && i === messages.length - 1) && (
+                  m.meta.truncated ? (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className="text-xs text-amber-500">⚠ Réponse interrompue</span>
+                      <button
+                        type="button"
+                        onClick={resendLast}
+                        disabled={streaming}
+                        className="text-xs font-medium text-blue-600 hover:underline disabled:opacity-50"
+                      >
+                        Réessayer
+                      </button>
+                    </div>
+                  ) : (
+                    <MessageFooter meta={m.meta} />
+                  )
+                )}
               </div>
             </div>
           ))}

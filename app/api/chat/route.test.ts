@@ -26,6 +26,10 @@ async function* fromChunks(chunks: string[]): AsyncIterable<string> {
   for (const c of chunks) yield c;
 }
 
+function makeResult(chunks: string[]) {
+  return { model: "gemini-2.5-flash-lite", chunks: fromChunks(chunks), meta: () => ({}) };
+}
+
 beforeEach(() => {
   streamAnswerMock.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -59,16 +63,14 @@ describe("POST /api/chat", () => {
   });
 
   it("default full mode: sends all pages with their indices", async () => {
-    streamAnswerMock.mockResolvedValue({
-      model: "gemini-2.5-flash-lite",
-      chunks: fromChunks(["Hello", ", ", "world"]),
-    });
+    streamAnswerMock.mockResolvedValue(makeResult(["Hello", ", ", "world"]));
 
     const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     expect(res.status).toBe(200);
-    expect(res.headers.get("x-gemini-model")).toBe("gemini-2.5-flash-lite");
     const body = await res.text();
-    expect(body).toBe("Hello, world");
+    expect(body.slice(0, body.indexOf("\x00") === -1 ? undefined : body.indexOf("\x00"))).toBe(
+      "Hello, world",
+    );
 
     expect(streamAnswerMock).toHaveBeenCalledWith({
       pages: [
@@ -81,10 +83,7 @@ describe("POST /api/chat", () => {
   });
 
   it("token saving: BM25 selects relevant pages and preserves indices", async () => {
-    streamAnswerMock.mockResolvedValue({
-      model: "gemini-2.5-flash-lite",
-      chunks: fromChunks(["ok"]),
-    });
+    streamAnswerMock.mockResolvedValue(makeResult(["ok"]));
 
     const ragPages = [
       "article général sur le travail",
@@ -107,10 +106,7 @@ describe("POST /api/chat", () => {
   });
 
   it("token saving: falls back to full mode when BM25 has no match", async () => {
-    streamAnswerMock.mockResolvedValue({
-      model: "gemini-2.5-flash-lite",
-      chunks: fromChunks(["ok"]),
-    });
+    streamAnswerMock.mockResolvedValue(makeResult(["ok"]));
 
     const res = await POST(
       makeRequest({
@@ -126,10 +122,7 @@ describe("POST /api/chat", () => {
   });
 
   it("passes a valid history to the llm", async () => {
-    streamAnswerMock.mockResolvedValue({
-      model: "gemini-2.5-flash-lite",
-      chunks: fromChunks(["ok"]),
-    });
+    streamAnswerMock.mockResolvedValue(makeResult(["ok"]));
 
     const history = [
       { role: "user", content: "prev q" },
@@ -140,20 +133,22 @@ describe("POST /api/chat", () => {
     expect(streamAnswerMock).toHaveBeenCalledWith(expect.objectContaining({ history }));
   });
 
-  it("appends a formatted quota message when LlmQuotaError occurs during stream", async () => {
+  it("closes stream silently on mid-stream LlmQuotaError, preserving partial content", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
       chunks: (async function* () {
         yield "partial";
         throw new LlmQuotaError("quota exhausted", 43);
       })(),
+      meta: () => ({}),
     });
 
     const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     const body = await res.text();
     expect(body).toContain("partial");
-    expect(body).toContain("Gemini quota exhausted");
-    expect(body).toContain("43s");
+    // No inline error — client detects missing sentinel and shows retry
+    expect(body).not.toContain("Gemini quota exhausted");
+    expect(body).not.toContain("\x00"); // no sentinel written on error
   });
 
   it("streams a quota message when all models are exhausted before the first chunk", async () => {
@@ -163,38 +158,38 @@ describe("POST /api/chat", () => {
     expect(body).toContain("Gemini quota exhausted");
   });
 
-  it("appends a transient message on LlmTransientError", async () => {
+  it("closes stream silently on mid-stream LlmTransientError", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
-      chunks: {
-        [Symbol.asyncIterator]() {
-          return {
-            next: () => Promise.reject(new LlmTransientError("upstream 503")),
-          };
-        },
-      },
+      chunks: (async function* () {
+        yield "partial";
+        throw new LlmTransientError("upstream 503");
+      })(),
+      meta: () => ({}),
     });
 
     const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     const body = await res.text();
-    expect(body).toContain("Transient Gemini error");
+    expect(body).toContain("partial");
+    expect(body).not.toContain("Transient");
+    expect(body).not.toContain("\x00");
   });
 
-  it("appends a generic error message on non-429 failure", async () => {
+  it("closes stream silently on mid-stream generic error", async () => {
     streamAnswerMock.mockResolvedValue({
       model: "gemini-2.5-flash-lite",
-      chunks: {
-        [Symbol.asyncIterator]() {
-          return {
-            next: () => Promise.reject(new Error("boom")),
-          };
-        },
-      },
+      chunks: (async function* () {
+        yield "partial";
+        throw new Error("boom");
+      })(),
+      meta: () => ({}),
     });
 
     const res = await POST(makeRequest({ pages: PAGES, question: "q" }));
     const body = await res.text();
-    expect(body).toContain("Error generating");
+    expect(body).toContain("partial");
+    expect(body).not.toContain("Error generating");
+    expect(body).not.toContain("\x00");
   });
 
   it("500 si le body n'est pas du JSON valide", async () => {

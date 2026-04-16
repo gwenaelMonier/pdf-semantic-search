@@ -1,7 +1,7 @@
 import { type Content, GoogleGenAI } from "@google/genai";
 import { getEnv } from "@/lib/env";
 import type { LlmClient, StreamAnswerOptions, StreamResult } from "@/lib/llm";
-import { LlmQuotaError, normalizeLlmError } from "@/lib/llm-errors";
+import { LlmQuotaError, LlmTransientError, normalizeLlmError } from "@/lib/llm-errors";
 import { SYSTEM_PROMPT } from "@/lib/prompts/system";
 
 export const ROTATION_MODELS = [
@@ -49,9 +49,16 @@ export function createGeminiClient(): LlmClient {
             });
             const stream = await chat.sendMessageStream({ message: userText });
             console.log(`[gemini] ${keyLabel} / selected model: ${modelId}`);
+            let collectedMeta: import("@/lib/llm").ResponseMeta = {};
             const chunks = async function* () {
               try {
                 for await (const chunk of stream) {
+                  if (chunk.usageMetadata) {
+                    collectedMeta = {
+                      promptTokens: chunk.usageMetadata.promptTokenCount,
+                      responseTokens: chunk.usageMetadata.candidatesTokenCount,
+                    };
+                  }
                   const text = chunk.text;
                   if (text) yield text;
                 }
@@ -59,11 +66,11 @@ export function createGeminiClient(): LlmClient {
                 throw normalizeLlmError(err);
               }
             };
-            return { model: modelId, chunks: chunks() };
+            return { model: modelId, chunks: chunks(), meta: () => collectedMeta };
           } catch (err) {
             const normalized = normalizeLlmError(err);
             const status = (err as { status?: number })?.status;
-            if (normalized instanceof LlmQuotaError || status === 404) {
+            if (normalized instanceof LlmQuotaError || normalized instanceof LlmTransientError || status === 404) {
               console.warn(
                 `[gemini] ${keyLabel} / ${modelId} skipped (${status ?? 429}), trying next model`,
               );

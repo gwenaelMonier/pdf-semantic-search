@@ -101,11 +101,11 @@ describe("createGeminiClient — model rotation", () => {
     expect(chatsCreateMock).toHaveBeenCalledTimes(1);
   });
 
-  it("does not retry on a non-quota error", async () => {
+  it("retries all models on transient error (503) then exhausts", async () => {
     chatsCreateMock.mockReturnValue(makeChat([], new LlmTransientError("503")));
     const client = createGeminiClient();
-    await expect(client.streamAnswer(OPTS)).rejects.toBeInstanceOf(LlmTransientError);
-    expect(chatsCreateMock).toHaveBeenCalledTimes(1);
+    await expect(client.streamAnswer(OPTS)).rejects.toBeInstanceOf(LlmQuotaError);
+    expect(chatsCreateMock).toHaveBeenCalledTimes(MODEL_COUNT);
   });
 });
 

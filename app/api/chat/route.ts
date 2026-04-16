@@ -10,7 +10,7 @@ export const maxDuration = 120;
 const MAX_HISTORY_TURNS = 20;
 const MAX_TURN_CHARS = 32_000;
 const MAX_QUESTION_CHARS = 4_000;
-const RAG_TOP_K = 5;
+const RAG_TOP_K = 15;
 
 const ChatTurnSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -95,17 +95,23 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { model, chunks } = streamResult;
+    const { model, chunks, meta } = streamResult;
+    const pagesSent = contextPages.length;
+    const pagesTotal = body.pages.length;
     const stream = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of chunks) {
             controller.enqueue(encoder.encode(chunk));
           }
+          const { promptTokens, responseTokens } = meta();
+          const sentinel = `\x00${JSON.stringify({ model, promptTokens, responseTokens, pagesSent, pagesTotal })}`;
+          controller.enqueue(encoder.encode(sentinel));
           controller.close();
         } catch (err) {
+          // Mid-stream error: close silently so the client detects the missing
+          // sentinel and shows a retry affordance instead of appending inline error text.
           console.error("stream error", err);
-          controller.enqueue(encoder.encode(formatStreamError(err)));
           controller.close();
         }
       },
@@ -115,7 +121,6 @@ export async function POST(req: NextRequest) {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",
-        "X-Gemini-Model": model,
       },
     });
   } catch (err) {

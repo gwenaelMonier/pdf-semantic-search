@@ -10,9 +10,15 @@ export type StreamAnswerOptions = {
   question: string;
 };
 
+export type ResponseMeta = {
+  promptTokens?: number;
+  responseTokens?: number;
+};
+
 export type StreamResult = {
   model: string;
   chunks: AsyncIterable<string>;
+  meta: () => ResponseMeta;
 };
 
 export interface LlmClient {
