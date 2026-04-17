@@ -70,7 +70,11 @@ export function createGeminiClient(): LlmClient {
           } catch (err) {
             const normalized = normalizeLlmError(err);
             const status = (err as { status?: number })?.status;
-            if (normalized instanceof LlmQuotaError || normalized instanceof LlmTransientError || status === 404) {
+            if (
+              normalized instanceof LlmQuotaError ||
+              normalized instanceof LlmTransientError ||
+              status === 404
+            ) {
               console.warn(
                 `[gemini] ${keyLabel} / ${modelId} skipped (${status ?? 429}), trying next model`,
               );

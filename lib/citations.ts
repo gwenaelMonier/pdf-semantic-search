@@ -55,9 +55,7 @@ function parseMultiPair(inner: string): CitationTarget[] {
 
 // Single-group format: [p. 12: "q1", "q2"] or [p. 12, 34] or [p. 52-53].
 function parseSingleGroup(inner: string): CitationTarget[] {
-  const withQuote = inner.match(
-    /^\s*([\d,\s\-–]+)\s*:\s*((?:"[^"]+"(?:\s*,\s*"[^"]+")*)\s*)$/,
-  );
+  const withQuote = inner.match(/^\s*([\d,\s\-–]+)\s*:\s*((?:"[^"]+"(?:\s*,\s*"[^"]+")*)\s*)$/);
   if (withQuote) {
     const pages = expandPageList(withQuote[1]);
     const quotes = [...withQuote[2].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
@@ -71,9 +69,7 @@ function parseSingleGroup(inner: string): CitationTarget[] {
 export function parseCitations(text: string): ParsedCitation[] {
   const out: ParsedCitation[] = [];
   const re = new RegExp(CITATION_REGEX.source, CITATION_REGEX.flags);
-  let match: RegExpExecArray | null;
-
-  while ((match = re.exec(text)) !== null) {
+  for (let match = re.exec(text); match !== null; match = re.exec(text)) {
     const inner = match[1]; // everything after "p." inside the brackets
 
     // Multi-pair: [p. 8: "q1", p. 9: "q2"]

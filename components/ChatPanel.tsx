@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { AssistantMarkdown } from "@/components/AssistantMarkdown";
-import { useChatStream, type MessageMeta } from "@/hooks/useChatStream";
+import { type MessageMeta, useChatStream } from "@/hooks/useChatStream";
 import type { CitationTarget } from "@/lib/citations";
 
 export type { Message } from "@/hooks/useChatStream";
@@ -14,15 +14,15 @@ function MessageFooter({ meta }: { meta: MessageMeta }) {
   if (meta.model) parts.push(meta.model);
   const totalTokens = (meta.promptTokens ?? 0) + (meta.responseTokens ?? 0);
   if (totalTokens > 0) parts.push(`${totalTokens.toLocaleString("fr-FR")} tokens`);
-  if (meta.pagesSent !== undefined && meta.pagesTotal !== undefined && meta.pagesSent < meta.pagesTotal) {
+  if (
+    meta.pagesSent !== undefined &&
+    meta.pagesTotal !== undefined &&
+    meta.pagesSent < meta.pagesTotal
+  ) {
     parts.push(`${meta.pagesSent}/${meta.pagesTotal} pages`);
   }
   if (parts.length === 0) return null;
-  return (
-    <p className="mt-1.5 text-xs text-zinc-400">
-      {parts.join(" · ")}
-    </p>
-  );
+  return <p className="mt-1.5 text-xs text-zinc-400">{parts.join(" · ")}</p>;
 }
 
 type Props = {
@@ -82,7 +82,8 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
                   />
                 </svg>
                 <span className="pointer-events-none absolute top-full left-1/2 z-10 mt-1.5 w-56 -translate-x-1/2 rounded-md bg-zinc-800 px-2.5 py-1.5 text-xs font-normal leading-snug text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-                  Sélectionne les pages pertinentes par mots-clés (BM25). Plus rapide mais moins bon sur les questions globales type « résume ce document ».
+                  Sélectionne les pages pertinentes par mots-clés (BM25). Plus rapide mais moins bon
+                  sur les questions globales type « résume ce document ».
                 </span>
               </span>
             </span>
@@ -143,8 +144,10 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
                     m.content
                   )}
                 </div>
-                {m.role === "assistant" && m.meta && !(streaming && i === messages.length - 1) && (
-                  m.meta.truncated ? (
+                {m.role === "assistant" &&
+                  m.meta &&
+                  !(streaming && i === messages.length - 1) &&
+                  (m.meta.truncated ? (
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className="text-xs text-amber-500">⚠ Réponse interrompue</span>
                       <button
@@ -158,8 +161,7 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
                     </div>
                   ) : (
                     <MessageFooter meta={m.meta} />
-                  )
-                )}
+                  ))}
               </div>
             </div>
           ))}

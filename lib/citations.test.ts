@@ -193,8 +193,7 @@ describe("parseCitations", () => {
   });
 
   it("parses multi-pair citation embedded in surrounding text", () => {
-    const text =
-      'Voir [p. 8: "grille ETAM", p. 9: "grille cadres"] pour les salaires.';
+    const text = 'Voir [p. 8: "grille ETAM", p. 9: "grille cadres"] pour les salaires.';
     const out = parseCitations(text);
     expect(out).toHaveLength(1);
     expect(out[0].targets[0]).toEqual({ page: 8, quote: "grille ETAM" });
