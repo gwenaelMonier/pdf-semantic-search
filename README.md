@@ -1,5 +1,7 @@
 # PDF Semantic Search
 
+**[Live demo →](https://pdf-semantic-search-theta.vercel.app/)**
+
 AI-powered chatbot that answers questions about any **PDF you upload**. For every answer, the model cites the source pages and clicking a citation jumps to the page and **highlights the exact quoted passage** in the PDF viewer.
 
 ## Features
