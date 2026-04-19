@@ -10,7 +10,8 @@
     "test:watch": "vitest",
     "lint": "biome check",
     "lint:fix": "biome check --write",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "postinstall": "cp node_modules/react-pdf/node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs && mkdir -p public/wasm && cp node_modules/react-pdf/node_modules/pdfjs-dist/wasm/openjpeg.wasm public/wasm/openjpeg.wasm"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",

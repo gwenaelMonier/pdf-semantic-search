@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import type { ViewerTarget } from "@/app/page";
 import { findHighlight, type PdfTextItem } from "@/lib/pdf-highlight";
 
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 type Props = {
   file: File;
@@ -60,6 +60,8 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  const pdfOptions = useMemo(() => ({ wasmUrl: "/wasm/" }), []);
 
   const clampedPage = Math.min(Math.max(1, target.page), numPages || 1);
 
@@ -162,6 +164,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
       <div ref={containerRef} className="min-h-0 flex-1 overflow-auto p-4">
         <Document
           file={fileData}
+          options={pdfOptions}
           onLoadSuccess={(pdf) => setNumPages(pdf.numPages)}
           loading={<p className="text-center text-sm text-zinc-500">Chargement…</p>}
           error={<p className="text-center text-sm text-red-500">Erreur de chargement.</p>}
@@ -175,6 +178,7 @@ export function PdfViewer({ file, target, onPageChange }: Props) {
                 renderTextLayer={true}
                 customTextRenderer={customTextRenderer}
                 onGetTextSuccess={handleGetTextSuccess}
+                onRenderError={(err) => console.error("[PdfViewer] render error", err)}
                 className="shadow-lg"
               />
             </div>
