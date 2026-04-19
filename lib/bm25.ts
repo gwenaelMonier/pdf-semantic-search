@@ -12,13 +12,23 @@ export type Bm25Index = {
   totalDocs: number;
 };
 
+function stem(token: string): string {
+  // Strip plural 's' only when preceded by a vowel, r, or n (cadres→cadre, démissions→démission, ingénieurs→ingénieur)
+  // Avoids corrupting words that legitimately end in 's' (préavis, fois, bois…)
+  if (token.length > 4 && token.endsWith("s") && /[enrtd]s$/.test(token)) {
+    return token.slice(0, -1);
+  }
+  return token;
+}
+
 export function tokenize(text: string): string[] {
   return text
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .split(/[^a-z0-9]+/)
-    .filter((t) => t.length >= MIN_TOKEN_LEN);
+    .filter((t) => t.length >= MIN_TOKEN_LEN)
+    .map(stem);
 }
 
 export function buildIndex(docs: string[]): Bm25Index {
