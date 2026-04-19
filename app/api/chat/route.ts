@@ -109,9 +109,14 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode(sentinel));
           controller.close();
         } catch (err) {
-          // Mid-stream error: close silently so the client detects the missing
-          // sentinel and shows a retry affordance instead of appending inline error text.
           console.error("stream error", err);
+          const e = normalizeLlmError(err);
+          const reason = e instanceof LlmQuotaError
+            ? "quota épuisé"
+            : e instanceof LlmTransientError
+              ? "surcharge du modèle IA"
+              : "erreur serveur";
+          controller.enqueue(encoder.encode(`\x01${reason}`));
           controller.close();
         }
       },

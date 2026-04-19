@@ -10,6 +10,7 @@ export type MessageMeta = {
   pagesTotal?: number;
   durationMs?: number;
   truncated?: boolean;
+  truncatedReason?: string;
 };
 
 export type Message = {
@@ -26,6 +27,11 @@ export type UseChatStreamResult = {
 };
 
 function parseSentinel(acc: string): { content: string; meta: MessageMeta | undefined } {
+  const errIdx = acc.indexOf("\x01");
+  if (errIdx !== -1) {
+    const reason = acc.slice(errIdx + 1);
+    return { content: acc.slice(0, errIdx), meta: { truncated: true, truncatedReason: reason } };
+  }
   const idx = acc.indexOf("\x00");
   if (idx === -1) return { content: acc, meta: undefined };
   const content = acc.slice(0, idx);
@@ -74,8 +80,11 @@ export function useChatStream(pages: string[], ragEnabled: boolean): UseChatStre
         const { value, done } = await reader.read();
         if (done) break;
         acc += decoder.decode(value, { stream: true });
-        // Strip sentinel during streaming so it doesn't flash in the UI
-        const displayContent = acc.includes("\x00") ? acc.slice(0, acc.indexOf("\x00")) : acc;
+        // Strip sentinels during streaming so they don't flash in the UI
+        const errI = acc.indexOf("\x01");
+        const okI = acc.indexOf("\x00");
+        const cutAt = errI !== -1 ? errI : okI !== -1 ? okI : -1;
+        const displayContent = cutAt !== -1 ? acc.slice(0, cutAt) : acc;
         setMessages((curr) => {
           const copy = [...curr];
           copy[copy.length - 1] = { role: "assistant", content: displayContent };
@@ -86,13 +95,13 @@ export function useChatStream(pages: string[], ragEnabled: boolean): UseChatStre
       // Final update: parse sentinel and attach metadata
       const durationMs = Date.now() - startedAt;
       const { content, meta } = parseSentinel(acc);
-      const truncated = meta === undefined && content.trim().length > 0;
+      const truncated = meta?.truncated || (meta === undefined && content.trim().length > 0);
       setMessages((curr) => {
         const copy = [...curr];
         copy[copy.length - 1] = {
           role: "assistant",
           content,
-          meta: meta ? { ...meta, durationMs } : truncated ? { truncated: true } : undefined,
+          meta: meta && !truncated ? { ...meta, durationMs } : truncated ? { truncated: true, truncatedReason: meta?.truncatedReason } : undefined,
         };
         return copy;
       });

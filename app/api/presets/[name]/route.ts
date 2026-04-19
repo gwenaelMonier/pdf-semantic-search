@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 const PRESETS_DIR = path.join(process.cwd(), "presets");
-const SAFE_NAME = /^[\w\-. ]+\.pdf$/;
+const SAFE_NAME = /^[^/\\]+\.pdf$/u;
 
 export async function GET(_req: Request, { params }: { params: Promise<{ name: string }> }) {
   const { name: rawName } = await params;

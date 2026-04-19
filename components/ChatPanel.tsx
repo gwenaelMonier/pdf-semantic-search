@@ -149,7 +149,9 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
                   !(streaming && i === messages.length - 1) &&
                   (m.meta.truncated ? (
                     <div className="mt-1.5 flex items-center gap-2">
-                      <span className="text-xs text-amber-500">⚠ Réponse interrompue</span>
+                      <span className="text-xs text-amber-500">
+                        ⚠ Réponse interrompue{m.meta.truncatedReason ? ` · ${m.meta.truncatedReason}` : ""}
+                      </span>
                       <button
                         type="button"
                         onClick={resendLast}
