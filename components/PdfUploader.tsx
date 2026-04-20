@@ -131,7 +131,7 @@ export function PdfUploader({ onUploaded }: Props) {
               <p className="mb-1 text-base font-medium text-zinc-800">Glissez-déposez un PDF ici</p>
               <p className="text-sm text-zinc-500">ou cliquez pour sélectionner</p>
               <p className="mt-4 text-xs text-zinc-400">
-                PDF uniquement · 30 Mo max · 500 pages max
+                PDF uniquement · 4,5 Mo max · 500 pages max
               </p>
             </div>
           )}

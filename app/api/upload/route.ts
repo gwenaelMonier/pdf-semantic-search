@@ -4,7 +4,7 @@ import { extractPdfPages } from "@/lib/pdf";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const MAX_BYTES = 30 * 1024 * 1024; // 30 MB
+const MAX_BYTES = 4.5 * 1024 * 1024; // 4.5 MB (Vercel serverless body limit)
 const MAX_PAGES = 500;
 
 export async function POST(req: NextRequest) {
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File must be a PDF." }, { status: 400 });
     }
     if (file.size > MAX_BYTES) {
-      return NextResponse.json({ error: "File too large (max 30 MB)." }, { status: 400 });
+      return NextResponse.json({ error: "File too large (max 4.5 MB)." }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
