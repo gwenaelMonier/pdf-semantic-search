@@ -11,7 +11,8 @@
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "format": "biome format --write",
-    "postinstall": "cp node_modules/react-pdf/node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs && mkdir -p public/wasm && cp node_modules/react-pdf/node_modules/pdfjs-dist/wasm/openjpeg.wasm public/wasm/openjpeg.wasm"
+    "postinstall": "cp node_modules/react-pdf/node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs && mkdir -p public/wasm && cp node_modules/react-pdf/node_modules/pdfjs-dist/wasm/openjpeg.wasm public/wasm/openjpeg.wasm",
+    "prepare": "husky"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",
@@ -32,6 +33,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.4",
+    "husky": "^9.1.7",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.4"

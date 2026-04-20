@@ -111,11 +111,12 @@ export async function POST(req: NextRequest) {
         } catch (err) {
           console.error("stream error", err);
           const e = normalizeLlmError(err);
-          const reason = e instanceof LlmQuotaError
-            ? "quota épuisé"
-            : e instanceof LlmTransientError
-              ? "surcharge du modèle IA"
-              : "erreur serveur";
+          const reason =
+            e instanceof LlmQuotaError
+              ? "quota épuisé"
+              : e instanceof LlmTransientError
+                ? "surcharge du modèle IA"
+                : "erreur serveur";
           controller.enqueue(encoder.encode(`\x01${reason}`));
           controller.close();
         }

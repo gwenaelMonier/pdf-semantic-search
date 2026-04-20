@@ -101,7 +101,12 @@ export function useChatStream(pages: string[], ragEnabled: boolean): UseChatStre
         copy[copy.length - 1] = {
           role: "assistant",
           content,
-          meta: meta && !truncated ? { ...meta, durationMs } : truncated ? { truncated: true, truncatedReason: meta?.truncatedReason } : undefined,
+          meta:
+            meta && !truncated
+              ? { ...meta, durationMs }
+              : truncated
+                ? { truncated: true, truncatedReason: meta?.truncatedReason }
+                : undefined,
         };
         return copy;
       });

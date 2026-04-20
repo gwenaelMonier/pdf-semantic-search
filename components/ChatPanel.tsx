@@ -150,7 +150,8 @@ export function ChatPanel({ pages, filename, pageCount, onPageClick, onReset }: 
                   (m.meta.truncated ? (
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className="text-xs text-amber-500">
-                        ⚠ Réponse interrompue{m.meta.truncatedReason ? ` · ${m.meta.truncatedReason}` : ""}
+                        ⚠ Réponse interrompue
+                        {m.meta.truncatedReason ? ` · ${m.meta.truncatedReason}` : ""}
                       </span>
                       <button
                         type="button"
