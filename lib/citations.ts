@@ -7,8 +7,7 @@ export type ParsedCitation = {
   targets: CitationTarget[];
 };
 
-// Matches any [p. ...] bracket — inner content parsed separately.
-export const CITATION_REGEX = /\[p\.([^\]]*)\]/g;
+const CITATION_RE = /\[p\.([^\]]*)\]/g;
 
 const MAX_RANGE_SPAN = 50;
 
@@ -19,8 +18,6 @@ export function expandPageList(raw: string): number[] {
     if (!trimmed) continue;
     const range = trimmed.match(/^(\d+)\s*[-–]\s*(\d+)$/);
     if (range) {
-      // Segment looks like a range: accept it only if valid, never fall
-      // through to single-page parsing (which would half-parse "12-10" as 12).
       const start = Number.parseInt(range[1], 10);
       const end = Number.parseInt(range[2], 10);
       if (
@@ -40,49 +37,64 @@ export function expandPageList(raw: string): number[] {
   return [...pages].sort((a, b) => a - b);
 }
 
-// Multi-pair format: [p. 8: "q1", p. 9: "q2"] — each page has its own quote.
-function parseMultiPair(inner: string): CitationTarget[] {
-  const targets: CitationTarget[] = [];
-  // Match each optional "p." prefix + page spec + quote
-  const pairRe = /(?:p\.\s*)?([\d,\s\-–]+)\s*:\s*"([^"]+)"/g;
-  for (const m of inner.matchAll(pairRe)) {
-    const pages = expandPageList(m[1]);
-    const quote = m[2];
-    for (const page of pages) targets.push({ page, quote });
-  }
-  return targets;
+// Takes everything between the outermost first and last '"', then splits on '", "'
+// boundaries. Handles embedded '"' naturally: "titre "sous-titre"" → one item.
+function extractQuoteList(s: string): string[] {
+  const first = s.indexOf('"');
+  const last = s.lastIndexOf('"');
+  if (first === -1 || last <= first) return [];
+  return s.slice(first + 1, last).split(/"\s*,\s*"/);
 }
 
-// Single-group format: [p. 12: "q1", "q2"] or [p. 12, 34] or [p. 52-53].
-function parseSingleGroup(inner: string): CitationTarget[] {
-  const withQuote = inner.match(/^\s*([\d,\s\-–]+)\s*:\s*((?:"[^"]+"(?:\s*,\s*"[^"]+")*)\s*)$/);
-  if (withQuote) {
-    const pages = expandPageList(withQuote[1]);
-    const quotes = [...withQuote[2].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-    return pages.flatMap((page) => quotes.map((quote) => ({ page, quote })));
+// Each "PAGES:" occurrence in inner is an anchor. Anchor count drives format:
+//   0 anchors → page-list only:  [p. 12, 34]  [p. 52-53]
+//   1 anchor  → single-group:    [p. 12: "q"]  [p. 12: "q1", "q2"]
+//   ≥2 anchors → multi-pair:     [p. 8: "q1", p. 9: "q2"]
+const ANCHOR_RE = /(?:^|,\s*)(?:p\.\s*)?([\d,\s\-–]+)\s*:\s*/g;
+
+function parseInner(inner: string): CitationTarget[] {
+  const anchors = [...inner.matchAll(ANCHOR_RE)];
+
+  if (anchors.length === 0) {
+    return expandPageList(inner).map((page) => ({ page }));
   }
-  // Page list only — strip any non-page characters before parsing.
-  const pages = expandPageList(inner.replace(/[^\d,\s\-–]/g, " ").trim());
-  return pages.map((page) => ({ page }));
+
+  if (anchors.length >= 2) {
+    const targets: CitationTarget[] = [];
+    for (let i = 0; i < anchors.length; i++) {
+      const anchor = anchors[i];
+      const pages = expandPageList(anchor[1]);
+      const contentStart = (anchor.index ?? 0) + anchor[0].length;
+      const contentEnd =
+        i + 1 < anchors.length ? (anchors[i + 1].index ?? inner.length) : inner.length;
+      const quotes = extractQuoteList(inner.slice(contentStart, contentEnd));
+      for (const page of pages) {
+        if (quotes.length > 0) {
+          for (const quote of quotes) targets.push({ page, quote });
+        } else {
+          targets.push({ page });
+        }
+      }
+    }
+    return targets;
+  }
+
+  const anchor = anchors[0];
+  const pages = expandPageList(anchor[1]);
+  if (pages.length === 0) return [];
+  const quoteStr = inner.slice((anchor.index ?? 0) + anchor[0].length).trim();
+  const quotes = extractQuoteList(quoteStr);
+  if (quotes.length === 0) return pages.map((page) => ({ page }));
+  return pages.flatMap((page) => quotes.map((quote) => ({ page, quote })));
 }
 
 export function parseCitations(text: string): ParsedCitation[] {
   const out: ParsedCitation[] = [];
-  const re = new RegExp(CITATION_REGEX.source, CITATION_REGEX.flags);
+  const re = new RegExp(CITATION_RE.source, CITATION_RE.flags);
   for (let match = re.exec(text); match !== null; match = re.exec(text)) {
-    const inner = match[1]; // everything after "p." inside the brackets
-
-    // Multi-pair: [p. 8: "q1", p. 9: "q2"]
-    const isMultiPair = /"\s*,\s*p\./.test(inner);
-    const targets = isMultiPair ? parseMultiPair(inner) : parseSingleGroup(inner);
-
+    const targets = parseInner(match[1]);
     if (targets.length === 0) continue;
-    out.push({
-      start: match.index,
-      end: match.index + match[0].length,
-      raw: match[0],
-      targets,
-    });
+    out.push({ start: match.index, end: match.index + match[0].length, raw: match[0], targets });
   }
   return out;
 }

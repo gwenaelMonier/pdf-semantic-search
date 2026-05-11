@@ -163,6 +163,19 @@ describe("parseCitations", () => {
     expect(out[0].targets[0].quote).toBe("à l'initiative de l'employeur : 24 heures");
   });
 
+  it("parses citation where quoted text contains embedded double quotes", () => {
+    const out = parseCitations('[p. 6: "Relations "internes-externes""]');
+    expect(out).toHaveLength(1);
+    expect(out[0].targets).toEqual([{ page: 6, quote: 'Relations "internes-externes"' }]);
+  });
+
+  it("parses page number even when embedded quotes prevent quote extraction", () => {
+    // If quote parsing is ambiguous, at minimum the page link must appear
+    const out = parseCitations('Voir [p. 3: "Titre "entre guillemets""] ci-dessous.');
+    expect(out).toHaveLength(1);
+    expect(out[0].targets[0].page).toBe(3);
+  });
+
   it("is safe to call repeatedly (no regex lastIndex leak)", () => {
     const text = "[p. 1] [p. 2]";
     const first = parseCitations(text);
